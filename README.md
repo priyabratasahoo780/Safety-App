@@ -247,29 +247,93 @@ We follow a strict **Feature-First Clean Architecture**. Each domain is isolated
 
 ```text
 Infinity_Coders-v2v/
-├── src/
-│   ├── features/               # Isolated feature modules
-│   │   ├── auth/               # JWT, Phone verification, biometrics
-│   │   ├── sos/                # Voice, shake triggers, emergency overlay
-│   │   ├── journeys/           # Live tracking, route deviation
-│   │   ├── trusted-contacts/   # Guardian management, permissions
-│   │   ├── community-reports/  # Heatmaps, safe zones, reporting
-│   │   ├── ai-assistant/       # Gemini chat, pattern prediction
-│   │   └── evidence-vault/     # Hidden camera/audio, encrypted sync
-│   │
-│   ├── shared/                 # Core utilities shared across features
-│   │   ├── ui/                 # Design system (Buttons, Cards, Modals)
-│   │   ├── lib/                # Supabase client, SQLite sync engine
-│   │   └── stores/             # Global Zustand state (UI theme, auth state)
-│   │
-│   ├── navigation/             # Expo Router layout & guards
-│   └── i18n/                   # Multi-language translations
-│
-├── supabase/
-│   ├── migrations/             # Postgres DDL & Row Level Security (RLS)
-│   └── functions/              # Edge Functions (Deno) for AI & Notifications
-│
-└── assets/                     # Fonts, images, and brand assets
+├── src
+│   ├── features
+│   │   ├── ai-assistant
+│   │   │   ├── components
+│   │   │   ├── hooks
+│   │   │   ├── repository
+│   │   │   ├── index.ts
+│   │   │   └── types.ts
+│   │   ├── auth
+│   │   │   ├── components
+│   │   │   ├── hooks
+│   │   │   ├── repository
+│   │   │   ├── index.ts
+│   │   │   └── types.ts
+│   │   ├── community-reports
+│   │   │   ├── components
+│   │   │   ├── hooks
+│   │   │   ├── repository
+│   │   │   ├── index.ts
+│   │   │   └── types.ts
+│   │   ├── evidence-vault
+│   │   │   ├── components
+│   │   │   ├── hooks
+│   │   │   ├── repository
+│   │   │   ├── index.ts
+│   │   │   └── types.ts
+│   │   ├── journeys
+│   │   │   ├── components
+│   │   │   ├── hooks
+│   │   │   ├── repository
+│   │   │   ├── index.ts
+│   │   │   └── types.ts
+│   │   ├── profile-settings
+│   │   │   ├── components
+│   │   │   ├── hooks
+│   │   │   ├── repository
+│   │   │   ├── index.ts
+│   │   │   └── types.ts
+│   │   ├── safe-navigation
+│   │   │   ├── components
+│   │   │   ├── hooks
+│   │   │   ├── repository
+│   │   │   ├── index.ts
+│   │   │   └── types.ts
+│   │   ├── safety-score
+│   │   │   ├── components
+│   │   │   ├── hooks
+│   │   │   ├── repository
+│   │   │   ├── index.ts
+│   │   │   └── types.ts
+│   │   ├── sos
+│   │   │   ├── components
+│   │   │   ├── hooks
+│   │   │   ├── offline
+│   │   │   ├── repository
+│   │   │   ├── index.ts
+│   │   │   └── types.ts
+│   │   └── trusted-contacts
+│   │       ├── components
+│   │       ├── hooks
+│   │       ├── repository
+│   │       ├── index.ts
+│   │       └── types.ts
+│   ├── i18n
+│   ├── navigation
+│   └── shared
+│       ├── constants
+│       ├── hooks
+│       ├── lib
+│       │   ├── sync-engine
+│       │   │   ├── outbox.ts
+│       │   │   └── worker.ts
+│       │   ├── axios-client.ts
+│       │   ├── sqlite-db.ts
+│       │   └── supabase-client.ts
+│       ├── stores
+│       └── ui
+├── supabase
+│   ├── functions
+│   │   ├── ai-assistant-chat
+│   │   ├── classify-report
+│   │   ├── compute-safety-score
+│   │   ├── notify-guardians
+│   │   └── suggest-safe-route
+│   └── migrations
+└── assets
+    └── logo.png
 ```
 
 ---
