@@ -1,6 +1,5 @@
 <p align="center">
-  <!-- TODO: User will manually replace the logo.png file in the assets folder with their red shield image -->
-  <img src="./assets/logo.png" alt="SafeSphere AI Logo" width="180" height="180" />
+  <img src="https://cdn-icons-png.flaticon.com/512/3233/3233483.png" alt="SafeSphere AI Logo" width="150" />
 </p>
 
 <h1 align="center">SafeSphere AI</h1>
@@ -269,6 +268,41 @@ erDiagram
    ```bash
    npx expo start
    ```
+
+   ```
+
+---
+
+## 📂 Project Structure & Feature Mapping
+
+We follow a strict **Feature-First Clean Architecture**. Each domain is isolated to prevent tangled dependencies.
+
+```text
+Infinity_Coders-v2v/
+├── src/
+│   ├── features/               # Isolated feature modules
+│   │   ├── auth/               # JWT, Phone verification, biometrics
+│   │   ├── sos/                # Voice, shake triggers, emergency overlay
+│   │   ├── journeys/           # Live tracking, route deviation
+│   │   ├── trusted-contacts/   # Guardian management, permissions
+│   │   ├── community-reports/  # Heatmaps, safe zones, reporting
+│   │   ├── ai-assistant/       # Gemini chat, pattern prediction
+│   │   └── evidence-vault/     # Hidden camera/audio, encrypted sync
+│   │
+│   ├── shared/                 # Core utilities shared across features
+│   │   ├── ui/                 # Design system (Buttons, Cards, Modals)
+│   │   ├── lib/                # Supabase client, SQLite sync engine
+│   │   └── stores/             # Global Zustand state (UI theme, auth state)
+│   │
+│   ├── navigation/             # Expo Router layout & guards
+│   └── i18n/                   # Multi-language translations
+│
+├── supabase/
+│   ├── migrations/             # Postgres DDL & Row Level Security (RLS)
+│   └── functions/              # Edge Functions (Deno) for AI & Notifications
+│
+└── assets/                     # Fonts, images, and brand assets
+```
 
 ---
 
