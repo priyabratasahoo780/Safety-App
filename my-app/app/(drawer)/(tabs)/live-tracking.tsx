@@ -16,10 +16,15 @@ import { Feather, MaterialCommunityIcons, Ionicons } from '@expo/vector-icons';
 import * as Location from 'expo-location';
 import { LiveMap } from '../../../features/location/components/LiveMap';
 
-const { width } = Dimensions.get('window');
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useWindowDimensions } from 'react-native';
 
 export default function LiveTrackingScreen() {
   const router = useRouter();
+  const { width } = useWindowDimensions();
+  const insets = useSafeAreaInsets();
+  const TAB_BAR_HEIGHT = 70;
+  const bottomPadding = TAB_BAR_HEIGHT + insets.bottom + 20;
 
   const [location, setLocation] = useState<Location.LocationObject | null>(null);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
@@ -228,7 +233,7 @@ export default function LiveTrackingScreen() {
         </View>
 
         {/* Extra spacing for bottom elevated tab */}
-        <View style={{ height: 100 }} />
+        <View style={{ height: bottomPadding }} />
 
       </ScrollView>
     </SafeAreaView>

@@ -171,7 +171,7 @@ export const HARMLESS_CONTEXT_WORDS: string[] = [
 // ─── Decision Thresholds ────────────────────────────────────────────────────
 
 /** Confidence threshold to trigger emergency (0–100) */
-export const EMERGENCY_THRESHOLD = 85;
+export const EMERGENCY_THRESHOLD = 90;
 
 /** Confidence threshold for high alert mode (0–100) */
 export const HIGH_ALERT_THRESHOLD = 70;

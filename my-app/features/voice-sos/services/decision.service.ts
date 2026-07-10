@@ -47,6 +47,8 @@ export class DecisionEngine {
   private weights: DecisionWeights;
   private lastDecision: DecisionResult | null = null;
   private consecutiveHighAlerts: number = 0;
+  private keywordHistory: number[] = [];
+
 
   constructor(weights: DecisionWeights = DEFAULT_DECISION_WEIGHTS) {
     this.weights = weights;
@@ -71,7 +73,13 @@ export class DecisionEngine {
       detectedKeyword: signals.detectedKeyword,
     });
 
+    if (signals.keywordScore > 50) {
+      this.keywordHistory.push(Date.now());
+      this.keywordHistory = this.keywordHistory.filter(t => Date.now() - t <= 10000);
+    }
+
     // Step 1: Check for false alarm context FIRST
+
     const isFalseAlarm = this.checkFalseAlarm(
       signals.detectedKeyword,
       signals.speechText
@@ -266,10 +274,38 @@ export class DecisionEngine {
       });
     }
 
-    // BYPASS: For demonstration and reliable SOS triggering, if the wake word is clearly detected, guarantee emergency
-    if (signals.keywordScore > 80) {
-      adjustedScore = Math.max(adjustedScore, 90); // Push above EMERGENCY_THRESHOLD
-      sosLogger.info(LOG_SOURCE, 'Escalation bypass: Keyword explicitly detected', {
+    // EXTREME DISTRESS OVERRIDE (National Hackathon Rule)
+    // Trigger immediately only when:
+    // - An emergency keyword is repeated (for example "HELP HELP", "BACHAO BACHAO").
+    // - Keyword score is greater than 80.
+    // - Emotion score is greater than 80 OR danger sound score is greater than 80.
+    
+    const textLower = (signals.speechText || '').toLowerCase();
+    const keywordLower = (signals.detectedKeyword || '').toLowerCase();
+    
+    let isRepeated = false;
+    if (keywordLower && textLower) {
+      const escapedKeyword = keywordLower.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      const regex = new RegExp(`\\b${escapedKeyword}\\b`, 'g');
+      const matches = textLower.match(regex);
+      if (matches && matches.length >= 2) {
+        isRepeated = true;
+      }
+    }
+
+    // Fallback: If STT fails, check if the wake word was detected repeatedly in a short time window (e.g., last 10 seconds)
+    if (!isRepeated && this.keywordHistory.length >= 2) {
+      isRepeated = true;
+    }
+
+    if (isRepeated && signals.keywordScore > 80 && (signals.emotionScore > 80 || signals.soundScore > 80)) {
+
+      adjustedScore = Math.max(adjustedScore, 100); // Force to 100
+      sosLogger.info(LOG_SOURCE, 'Escalation bypass: EXTREME DISTRESS OVERRIDE applied', {
+        keywordScore: signals.keywordScore,
+        emotionScore: signals.emotionScore,
+        soundScore: signals.soundScore,
+        isRepeated,
         boostedScore: adjustedScore,
       });
     }

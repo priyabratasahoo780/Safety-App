@@ -12,15 +12,20 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { useRouter } from 'expo-router';
 import { Feather, MaterialCommunityIcons } from '@expo/vector-icons';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useWindowDimensions } from 'react-native';
 
 import { SafeRouteMap } from '../../../../features/location/components/SafeRouteMap';
 import { useLiveLocation } from '../../../../features/location/hooks/useLiveLocation';
 import { RouteOption } from '../../../../features/location/types/location.types';
 
-const { width, height } = Dimensions.get('window');
-
 export default function NavigateScreen() {
   const router = useRouter();
+  const { width } = useWindowDimensions();
+  const insets = useSafeAreaInsets();
+  const TAB_BAR_HEIGHT = 70; // Our custom floating tab bar height
+  const bottomPadding = TAB_BAR_HEIGHT + insets.bottom + 20;
+
   const [selectedRoute, setSelectedRoute] = useState<'recommended' | 'shorter'>('recommended');
   const [destination, setDestination] = useState('Salt Lake Central Park');
   const { location } = useLiveLocation();
@@ -185,7 +190,7 @@ export default function NavigateScreen() {
       </View>
 
       {/* Route Cards Scroll Container */}
-      <View style={styles.bottomCardWrapper}>
+      <View style={[styles.bottomCardWrapper, { bottom: bottomPadding }]}>
         <Text style={styles.cardsHeader}>Select Route</Text>
 
         <ScrollView 
@@ -197,9 +202,11 @@ export default function NavigateScreen() {
           <TouchableOpacity 
             style={[
               styles.routeCard, 
+              { width: width * 0.65 },
               selectedRoute === 'recommended' && styles.activeRouteCard
             ]}
             onPress={() => setSelectedRoute('recommended')}
+            activeOpacity={0.9}
           >
             <View style={styles.routeHeader}>
               <View style={styles.badgeSafest}>
@@ -225,13 +232,15 @@ export default function NavigateScreen() {
             </View>
           </TouchableOpacity>
 
-          {/* Route 2: Fastest Route (Orange) */}
+          {/* Route 2: Shortest Route */}
           <TouchableOpacity 
             style={[
-              styles.routeCard, 
+              styles.routeCard,
+              { width: width * 0.65 },
               selectedRoute === 'shorter' && styles.activeRouteCard
             ]}
             onPress={() => setSelectedRoute('shorter')}
+            activeOpacity={0.9}
           >
             <View style={styles.routeHeader}>
               <View style={styles.badgeFastest}>
@@ -441,7 +450,6 @@ const styles = StyleSheet.create({
     paddingBottom: 12,
   },
   routeCard: {
-    width: width * 0.65,
     backgroundColor: '#FFFFFF',
     borderWidth: 2,
     borderColor: '#F3F4F6',

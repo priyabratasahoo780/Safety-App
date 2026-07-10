@@ -214,6 +214,16 @@ export interface EmergencyEvent {
   signals: DecisionSignals;
   /** Chronological timeline of events leading to this emergency */
   timeline: TimelineEntry[];
+  /** Audio URL of initial evidence */
+  audioUrl?: string | null;
+  /** Video URL of initial evidence */
+  videoUrl?: string | null;
+  /** Latest Audio URL of continuous evidence */
+  latestAudioUrl?: string | null;
+  /** Latest Video URL of continuous evidence */
+  latestVideoUrl?: string | null;
+  /** Dictionary of evidence chunks */
+  evidenceChunks?: Record<string, { audioUrl: string; videoUrl: string; timestamp: number }>;
 }
 
 /**

@@ -9,8 +9,11 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
-import { useRouter } from 'expo-router';
+import { useRouter, useFocusEffect } from 'expo-router';
 import { Feather } from '@expo/vector-icons';
+import { collection, query, orderBy, getDocs } from 'firebase/firestore';
+import { db } from '../../../src/config/firebaseConfig';
+import { useCallback } from 'react';
 
 const { width } = Dimensions.get('window');
 
@@ -28,38 +31,42 @@ interface Incident {
 export default function CommunityScreen() {
   const router = useRouter();
   const [activeTab, setActiveTab] = useState<'feed' | 'heatmap'>('heatmap');
-  const [incidents, setIncidents] = useState<Incident[]>([
-    {
-      id: '1',
-      category: 'Poor Lighting',
-      location: 'Near Salt Lake Sector V Metro Station',
-      time: '2 hours ago',
-      description: 'Streetlights under the metro bridge are completely broken. Extremely dark walking path after 8 PM.',
-      votes: 18,
-      myVote: null,
-      verified: true,
-    },
-    {
-      id: '2',
-      category: 'Harassment',
-      location: 'Block GP, Sector V',
-      time: '1 day ago',
-      description: 'Group of men loitering near the tea stall catcalling women walking past towards office complexes.',
-      votes: 34,
-      myVote: null,
-      verified: true,
-    },
-    {
-      id: '3',
-      category: 'Suspicious Activity',
-      location: 'Sector 3 Park Lane',
-      time: '3 days ago',
-      description: 'Unmarked van parked near the playground gates for multiple nights. Drivers watching passersby.',
-      votes: 8,
-      myVote: null,
-      verified: false,
-    }
-  ]);
+  const [incidents, setIncidents] = useState<Incident[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useFocusEffect(
+    useCallback(() => {
+      const fetchIncidents = async () => {
+        try {
+          const q = query(collection(db, 'community_reports'), orderBy('createdAt', 'desc'));
+          const snapshot = await getDocs(q);
+          const fetchedData: Incident[] = [];
+          
+          snapshot.forEach((doc) => {
+            const data = doc.data();
+            fetchedData.push({
+              id: doc.id,
+              category: data.category as any,
+              location: data.location,
+              description: data.description,
+              votes: data.votes || 0,
+              myVote: null,
+              verified: data.verified || false,
+              time: data.createdAt ? new Date(data.createdAt.toDate()).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}) : 'Just now'
+            });
+          });
+          
+          setIncidents(fetchedData);
+        } catch (error) {
+          console.error("Failed to fetch reports:", error);
+        } finally {
+          setLoading(false);
+        }
+      };
+
+      fetchIncidents();
+    }, [])
+  );
 
   const handleVote = (id: string, type: 'up' | 'down') => {
     setIncidents(prev => prev.map(inc => {

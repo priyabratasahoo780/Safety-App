@@ -3,6 +3,8 @@ import { StyleSheet, View, Text, TextInput, TouchableOpacity, ScrollView, SafeAr
 import { useRouter } from 'expo-router';
 import { Feather } from '@expo/vector-icons';
 import { StatusBar } from 'expo-status-bar';
+import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
+import { db } from '../../../../src/config/firebaseConfig';
 
 const CATEGORIES = [
   { id: 'harassment', label: 'Harassment', color: '#EF4444' },
@@ -16,11 +18,27 @@ export default function ReportIncidentScreen() {
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
   const [location, setLocation] = useState('');
   const [description, setDescription] = useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const handleSubmit = () => {
-    // In a real app, this would submit to the backend
-    // For now, just navigate back to the community feed
-    router.back();
+  const handleSubmit = async () => {
+    if (!selectedCategory || !location || !description) return;
+    
+    setIsSubmitting(true);
+    try {
+      await addDoc(collection(db, 'community_reports'), {
+        category: CATEGORIES.find(c => c.id === selectedCategory)?.label || 'Other',
+        location,
+        description,
+        votes: 0,
+        myVote: null,
+        verified: false,
+        createdAt: serverTimestamp(),
+      });
+      router.back();
+    } catch (e) {
+      console.error('Failed to submit report', e);
+      setIsSubmitting(false);
+    }
   };
 
   return (
@@ -104,13 +122,13 @@ export default function ReportIncidentScreen() {
           <TouchableOpacity 
             style={[
               styles.submitBtn,
-              (!selectedCategory || !location || !description) && styles.submitBtnDisabled
+              (!selectedCategory || !location || !description || isSubmitting) && styles.submitBtnDisabled
             ]}
             activeOpacity={0.9}
             onPress={handleSubmit}
-            disabled={!selectedCategory || !location || !description}
+            disabled={!selectedCategory || !location || !description || isSubmitting}
           >
-            <Text style={styles.submitBtnText}>Submit Report</Text>
+            <Text style={styles.submitBtnText}>{isSubmitting ? 'Submitting...' : 'Submit Report'}</Text>
           </TouchableOpacity>
         </View>
       </KeyboardAvoidingView>

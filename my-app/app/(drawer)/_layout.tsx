@@ -66,7 +66,7 @@ export default function DrawerLayout() {
           }}
         />
         <Drawer.Screen
-          name="community/index"
+          name="community"
           options={{
             drawerLabel: 'Community',
             drawerIcon: ({ color }) => <Feather name="users" size={22} color={color} />,
@@ -77,6 +77,25 @@ export default function DrawerLayout() {
           options={{
             drawerLabel: 'Profile',
             drawerIcon: ({ color }) => <Feather name="user" size={22} color={color} />,
+          }}
+        />
+        <Drawer.Screen
+          name="crime-rate"
+          options={{
+            drawerLabel: 'Crime Rate Area',
+            drawerIcon: ({ color }) => <Feather name="map" size={22} color={color} />,
+          }}
+        />
+        <Drawer.Screen
+          name="fake-call"
+          options={{
+            drawerItemStyle: { display: 'none' }, // Hide from Drawer menu, but register route
+          }}
+        />
+        <Drawer.Screen
+          name="notifications"
+          options={{
+            drawerItemStyle: { display: 'none' }, // Hide from Drawer menu
           }}
         />
       </Drawer>

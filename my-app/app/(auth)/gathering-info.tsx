@@ -78,14 +78,14 @@ export default function GatheringInfoScreen() {
   const [request, response, promptAsync] = Google.useAuthRequest({
     clientId: GOOGLE_CLIENT_IDS.webClientId,
     responseType: 'id_token',
-    redirectUri: AuthSession.makeRedirectUri({ useProxy: true }),
+    redirectUri: AuthSession.makeRedirectUri(),
   });
 
   React.useEffect(() => {
     if (response?.type === 'success') {
       const { id_token } = response.params;
       authService.loginWithGoogleCredential(id_token).then(() => {
-        router.replace('/(tabs)/home');
+        router.replace('/(drawer)/(tabs)/home');
       }).catch(error => {
         Alert.alert('Google Sign-In Error', error.message);
       });

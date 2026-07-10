@@ -39,7 +39,7 @@ export default function NewReportScreen() {
     
     // Simulate successful incident filing
     Alert.alert('Report Filed', 'Your incident report has been submitted for moderation.', [
-      { text: 'OK', onPress: () => router.replace('/(drawer)/(tabs)/community') }
+      { text: 'OK', onPress: () => router.replace('/(drawer)/community') }
     ]);
   };
 
