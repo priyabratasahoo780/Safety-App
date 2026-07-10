@@ -1,6 +1,4 @@
-import React, { useEffect, useState } from 'react';
-import { onAuthStateChanged } from "firebase/auth";
-import { auth } from "@/src/config/firebaseConfig";
+import React from 'react';
 import {
   StyleSheet,
   View,
@@ -18,15 +16,8 @@ const { width } = Dimensions.get('window');
 
 export default function OnboardingScreen() {
   const router = useRouter();
-  const [isSignedIn, setIsSignedIn] = useState(false);
 
-  useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, (user) => {
-      setIsSignedIn(!!user);
-      if (user) router.replace("/(drawer)/(tabs)/home");
-    });
-    return unsubscribe;
-  }, []);
+  // _layout.tsx will handle all auth routing
 
   return (
     <SafeAreaView style={styles.container} edges={['top', 'bottom']}>
