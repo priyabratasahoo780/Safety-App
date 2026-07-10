@@ -45,7 +45,6 @@ import {
   Menu,
   AlertOctagon,
 } from 'lucide-react-native';
-import { auth } from '../../../../src/config/firebaseConfig';
 import { FirebaseGuardianRepository } from '@/features/guardian/repositories/FirebaseGuardianRepository';
 
 
