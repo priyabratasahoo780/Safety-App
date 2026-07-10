@@ -29,6 +29,7 @@ export const SafeRouteMap = forwardRef<MapHandle, Props>((props, ref) => {
   return (
     <View style={styles.container}>
       {React.createElement('iframe', {
+        key: `${centerLat}-${centerLng}`,
         src: `https://www.openstreetmap.org/export/embed.html?bbox=${centerLng - 0.02},${centerLat - 0.02},${centerLng + 0.02},${centerLat + 0.02}&layer=mapnik&marker=${centerLat},${centerLng}`,
         style: { width: '100%', height: '100%', border: 'none' }
       })}

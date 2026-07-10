@@ -31,20 +31,43 @@ export default function NavigateScreen() {
     if (location) {
       const start = { latitude: location.latitude, longitude: location.longitude };
       const end = destinationCoords;
+      
+      // Calculate straight-line distance in km (Haversine)
+      const toRad = (value: number) => (value * Math.PI) / 180;
+      const R = 6371; // Earth's radius in km
+      const dLat = toRad(end.latitude - start.latitude);
+      const dLon = toRad(end.longitude - start.longitude);
+      const a =
+        Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+        Math.cos(toRad(start.latitude)) * Math.cos(toRad(end.latitude)) *
+        Math.sin(dLon / 2) * Math.sin(dLon / 2);
+      const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+      const distanceKm = R * c;
+      
+      // Direct Route is roughly 1.3x straight-line distance due to roads
+      const directDist = distanceKm * 1.3;
+      // Safest route might be slightly longer, say 1.5x
+      const safeDist = distanceKm * 1.5;
+      
+      // Assume average speed in city is 30 km/h (0.5 km/min)
+      const directMins = Math.max(1, Math.round(directDist / 0.5));
+      const safeMins = Math.max(1, Math.round(safeDist / 0.5));
+
       const generatePath = (curveOffset: number) => [
         start,
         { latitude: start.latitude + (end.latitude - start.latitude) * 0.3 + curveOffset, longitude: start.longitude + (end.longitude - start.longitude) * 0.3 },
         { latitude: start.latitude + (end.latitude - start.latitude) * 0.7 - curveOffset, longitude: start.longitude + (end.longitude - start.longitude) * 0.7 },
         end
       ];
+
       setRoutes([
         {
           id: 'safest',
           title: 'Safest Route',
           theme: 'green',
           description: 'AI Recommended',
-          duration: '16 mins',
-          distance: '4.2 km',
+          duration: `${safeMins > 60 ? Math.floor(safeMins/60) + ' hr ' + (safeMins%60) : safeMins} mins`,
+          distance: `${safeDist.toFixed(1)} km`,
           tags: [],
           coordinates: generatePath(0.002)
         },
@@ -53,8 +76,8 @@ export default function NavigateScreen() {
           title: 'Direct Route',
           theme: 'orange',
           description: 'Fastest',
-          duration: '12 mins',
-          distance: '3.1 km',
+          duration: `${directMins > 60 ? Math.floor(directMins/60) + ' hr ' + (directMins%60) : directMins} mins`,
+          distance: `${directDist.toFixed(1)} km`,
           tags: [],
           coordinates: generatePath(-0.003)
         }
@@ -66,13 +89,13 @@ export default function NavigateScreen() {
     const delayDebounceFn = setTimeout(async () => {
       if (destination.trim().length > 2) {
         try {
-          // Use OpenStreetMap Nominatim for reliable free geocoding on Web
-          const res = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(destination)}`);
+          // Use Open-Meteo Geocoding API (completely free, no restrictions)
+          const res = await fetch(`https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(destination)}&count=1&language=en&format=json`);
           const data = await res.json();
-          if (data && data.length > 0) {
+          if (data && data.results && data.results.length > 0) {
             setDestinationCoords({ 
-              latitude: parseFloat(data[0].lat), 
-              longitude: parseFloat(data[0].lon) 
+              latitude: data.results[0].latitude, 
+              longitude: data.results[0].longitude 
             });
           }
         } catch (e) {
@@ -85,9 +108,22 @@ export default function NavigateScreen() {
   }, [destination]);
 
   const handleStartJourney = () => {
+    const route = routes.find(r => r.id === selectedRoute);
+    let mins = 25;
+    if (route) {
+       if (route.duration.includes('hr')) {
+         const parts = route.duration.split('hr');
+         const h = parseInt(parts[0].trim());
+         const m = parseInt(parts[1].replace('mins', '').trim()) || 0;
+         mins = (h * 60) + m;
+       } else {
+         mins = parseInt(route.duration.replace('mins', '').trim()) || 25;
+       }
+    }
+
     router.push({
       pathname: '/journey/new',
-      params: { destination, selectedRoute }
+      params: { destination, selectedRoute, estMins: mins }
     });
   };
 
