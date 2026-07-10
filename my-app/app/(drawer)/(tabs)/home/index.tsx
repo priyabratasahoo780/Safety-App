@@ -45,6 +45,7 @@ import {
   Menu,
   AlertOctagon,
 } from 'lucide-react-native';
+import { useUser } from '@clerk/clerk-expo';
 import { FirebaseGuardianRepository } from '@/features/guardian/repositories/FirebaseGuardianRepository';
 
 
@@ -257,6 +258,7 @@ const SOSButton = ({ isActive, onActivate }: any) => {
 export default function HomeScreen() {
   const router = useRouter();
   const navigation = useNavigation();
+  const { user } = useUser();
   const { width } = useWindowDimensions();
   const insets = useSafeAreaInsets();
 
@@ -475,10 +477,9 @@ export default function HomeScreen() {
           </Pressable>
           <Pressable style={styles.quickDialItem} onPress={async () => {
             Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-            const user = auth.currentUser;
             if (user) {
               const repo = new FirebaseGuardianRepository();
-              const guardians = await repo.getRegisteredGuardians(user.uid);
+              const guardians = await repo.getRegisteredGuardians(user.id);
               if (guardians.length > 0 && guardians[0].phone) {
                 Linking.openURL(`tel:${guardians[0].phone}`);
               } else {

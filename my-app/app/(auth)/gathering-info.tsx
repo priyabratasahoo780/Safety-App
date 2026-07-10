@@ -16,16 +16,16 @@ import { StatusBar } from 'expo-status-bar';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { Feather, FontAwesome5 } from '@expo/vector-icons';
 import { authService } from '../../src/services/authService';
-import { GOOGLE_CLIENT_IDS } from '../../src/config/firebaseConfig';
+import { useSignUp, useOAuth } from '@clerk/clerk-expo';
 import * as WebBrowser from 'expo-web-browser';
-import * as Google from 'expo-auth-session/providers/google';
-import * as AuthSession from 'expo-auth-session';
 
 WebBrowser.maybeCompleteAuthSession();
 
 export default function GatheringInfoScreen() {
   const router = useRouter();
   const params = useLocalSearchParams();
+  const { signUp, setActive, isLoaded } = useSignUp();
+  const { startOAuthFlow } = useOAuth({ strategy: 'oauth_google' });
   
   const [fullName, setFullName] = useState((params.fullName as string) || '');
   const [email, setEmail] = useState((params.email as string) || '');
@@ -64,36 +64,48 @@ export default function GatheringInfoScreen() {
       return;
     }
 
+    if (!isLoaded) return;
+    
     setLoading(true);
     try {
-      await authService.signUp(email, finalPassword, fullName);
-      router.push('/(auth)/safety-info');
+      // 1. Create Clerk user
+      const result = await signUp.create({
+        emailAddress: email,
+        password: finalPassword,
+        firstName: fullName.split(' ')[0],
+        lastName: fullName.split(' ').slice(1).join(' ')
+      });
+
+      if (result.status === 'complete' || result.status === 'missing_requirements') {
+        // 2. Set active session in Clerk
+        if (result.createdSessionId) {
+          await setActive({ session: result.createdSessionId });
+        }
+        // 3. Create initial profile in Firestore using Clerk's user ID
+        if (result.createdUserId) {
+          await authService.createUserProfile(result.createdUserId, email, fullName);
+        }
+        router.push('/(auth)/safety-info');
+      } else {
+        Alert.alert("Sign up Error", "Unable to complete sign up at this time.");
+      }
     } catch (error: any) {
-      Alert.alert("Sign up Error", error.message);
+      Alert.alert("Sign up Error", error.errors?.[0]?.message || error.message);
     } finally {
       setLoading(false);
     }
   };
 
-  const [request, response, promptAsync] = Google.useAuthRequest({
-    clientId: GOOGLE_CLIENT_IDS.webClientId,
-    responseType: 'id_token',
-    redirectUri: AuthSession.makeRedirectUri(),
-  });
-
-  React.useEffect(() => {
-    if (response?.type === 'success') {
-      const { id_token } = response.params;
-      authService.loginWithGoogleCredential(id_token).then(() => {
-        router.replace('/(drawer)/(tabs)/home');
-      }).catch(error => {
-        Alert.alert('Google Sign-In Error', error.message);
-      });
-    }
-  }, [response]);
-
   const handleGoogleSignIn = async () => {
-    promptAsync();
+    try {
+      const { createdSessionId, setActive: setActiveSession } = await startOAuthFlow();
+      if (createdSessionId) {
+        await setActiveSession!({ session: createdSessionId });
+        // InitialLayout ka useEffect redirect karega
+      }
+    } catch (error: any) {
+      Alert.alert('Google Sign-In Error', error.errors?.[0]?.message || error.message);
+    }
   };
 
   return (

@@ -14,10 +14,12 @@ import { StatusBar } from 'expo-status-bar';
 import { useRouter } from 'expo-router';
 import { Feather, FontAwesome5, MaterialCommunityIcons } from '@expo/vector-icons';
 import { authService } from '../../src/services/authService';
+import { useUser } from '@clerk/clerk-expo';
 import * as Location from 'expo-location';
 
 export default function SafetyInfoScreen() {
   const router = useRouter();
+  const { user } = useUser();
   const [loading, setLoading] = useState(false);
   const [age, setAge] = useState('');
   const [gender, setGender] = useState('');
@@ -42,9 +44,14 @@ export default function SafetyInfoScreen() {
       return;
     }
     
+    if (!user) {
+      Alert.alert("Error", "You must be logged in to update your profile.");
+      return;
+    }
+    
     setLoading(true);
     try {
-      await authService.updateUserProfile({
+      await authService.updateUserProfile(user.id, {
         age,
         gender,
         safetyPreferences: {
