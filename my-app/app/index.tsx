@@ -54,52 +54,44 @@ export default function OnboardingScreen() {
             {/* Card 1: Instant SOS */}
             <View style={styles.card}>
               <View style={[styles.iconWrapper, { backgroundColor: '#FFF0F2' }]}>
-                <MaterialCommunityIcons name="alarm-light-outline" size={20} color="#F34E62" />
+                <MaterialCommunityIcons name="alarm-light-outline" size={18} color="#F34E62" />
               </View>
               <View style={styles.cardContent}>
                 <Text style={[styles.cardTitle, { color: '#F34E62' }]}>Instant SOS</Text>
-                <Text style={styles.cardDescription}>
-                  One tap alert to trusted contacts.
-                </Text>
+                <Text style={styles.cardDescription}>One tap alert</Text>
               </View>
             </View>
 
             {/* Card 2: Live Tracking */}
             <View style={styles.card}>
               <View style={[styles.iconWrapper, { backgroundColor: '#F3E8FF' }]}>
-                <Feather name="map-pin" size={18} color="#9061F9" />
+                <Feather name="map-pin" size={16} color="#9061F9" />
               </View>
               <View style={styles.cardContent}>
                 <Text style={[styles.cardTitle, { color: '#9061F9' }]}>Live Tracking</Text>
-                <Text style={styles.cardDescription}>
-                  Share real-time location.
-                </Text>
+                <Text style={styles.cardDescription}>Share location</Text>
               </View>
             </View>
 
             {/* Card 3: AI Safety */}
             <View style={styles.card}>
               <View style={[styles.iconWrapper, { backgroundColor: '#DEF7EC' }]}>
-                <Feather name="shield" size={18} color="#0E9F6E" />
+                <Feather name="shield" size={16} color="#0E9F6E" />
               </View>
               <View style={styles.cardContent}>
                 <Text style={[styles.cardTitle, { color: '#0E9F6E' }]}>AI Safety</Text>
-                <Text style={styles.cardDescription}>
-                  Smart scores & suggestions.
-                </Text>
+                <Text style={styles.cardDescription}>Smart scores</Text>
               </View>
             </View>
 
             {/* Card 4: Community */}
             <View style={styles.card}>
               <View style={[styles.iconWrapper, { backgroundColor: '#FEF3C7' }]}>
-                <Feather name="users" size={18} color="#D97706" />
+                <Feather name="users" size={16} color="#D97706" />
               </View>
               <View style={styles.cardContent}>
                 <Text style={[styles.cardTitle, { color: '#D97706' }]}>Community</Text>
-                <Text style={styles.cardDescription}>
-                  Report & help safely together.
-                </Text>
+                <Text style={styles.cardDescription}>Help together</Text>
               </View>
             </View>
           </View>
