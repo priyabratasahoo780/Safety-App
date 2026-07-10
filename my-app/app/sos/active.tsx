@@ -99,7 +99,7 @@ export default function ActiveSosScreen() {
         network: NetworkStatus.ONLINE,
         keyword: 'MANUAL_SOS',
         speechText: 'Manual SOS triggered via UI button',
-        language: SupportedLanguage.EN_US,
+        language: SupportedLanguage.ENGLISH,
         timeline: [],
       });
     } catch (e) {

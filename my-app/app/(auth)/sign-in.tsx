@@ -64,7 +64,7 @@ export default function SignInScreen() {
   const [request, response, promptAsync] = Google.useAuthRequest({
     clientId: GOOGLE_CLIENT_IDS.webClientId,
     responseType: 'id_token',
-    redirectUri: AuthSession.makeRedirectUri({ useProxy: true }),
+    redirectUri: AuthSession.makeRedirectUri(),
   });
 
   React.useEffect(() => {
@@ -81,8 +81,7 @@ export default function SignInScreen() {
   const handleGoogleSignIn = async () => {
     if (Platform.OS === 'web') {
       try {
-        await authService.loginWithGoogleWeb();
-        router.replace('/(drawer)/(tabs)/home');
+        Alert.alert('Google Sign-In', 'Web sign-in is not implemented yet.');
       } catch (error: any) {
         Alert.alert('Google Sign-In Error', error.message);
       }

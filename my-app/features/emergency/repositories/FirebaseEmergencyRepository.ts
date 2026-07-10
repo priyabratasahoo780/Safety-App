@@ -24,13 +24,15 @@ export class FirebaseEmergencyRepository implements IEmergencyRepository {
   async updateEmergencySession(id: string, updates: Partial<EmergencyEvent>): Promise<void> {
     try {
       const emergencyRef = doc(db, 'emergencies', id);
-      await updateDoc(emergencyRef, {
+      // CRITICAL FIX: Use setDoc with merge: true to avoid 'No document to update' errors
+      // if the background update happens before the initial create finishes.
+      await setDoc(emergencyRef, {
         ...updates,
         updatedAt: new Date().toISOString()
-      });
+      }, { merge: true });
       sosLogger.info(LOG_SOURCE, `Updated emergency session in Firestore: ${id}`);
     } catch (error) {
-      sosLogger.warn(LOG_SOURCE, 'Failed to update emergency session in Firestore', { error });
+      sosLogger.warn(LOG_SOURCE, 'Failed to update emergency session in Firestore', { error: String(error) });
     }
   }
 

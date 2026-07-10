@@ -2,21 +2,19 @@ import { EmergencyEvent } from '../../emergency/types/emergency.types';
 import { IWhatsAppService, ISMSService } from './IProviders';
 import { Platform, NativeModules } from 'react-native';
 import { sosLogger } from '../../voice-sos/utils/logger';
+import { auth } from '../../../src/config/firebaseConfig';
 
 const LOG_SOURCE = 'TwilioService';
 
+// Backend URL configurable via env var. Fallbacks based on environment.
+const BACKEND_URL = process.env.EXPO_PUBLIC_BACKEND_URL || 'http://localhost:3000';
+
 export class TwilioService implements IWhatsAppService, ISMSService {
-  private accountSid = process.env.EXPO_PUBLIC_TWILIO_ACCOUNT_SID || 'AC_dummy_sid';
-  private authToken = process.env.EXPO_PUBLIC_TWILIO_AUTH_TOKEN || 'dummy_auth';
-  private twilioNumber = process.env.EXPO_PUBLIC_TWILIO_PHONE_NUMBER || '+1234567890';
-  private twilioWhatsAppNumber = process.env.EXPO_PUBLIC_TWILIO_WHATSAPP_NUMBER || 'whatsapp:+14155238886';
 
   async sendWhatsAppAlert(phoneNumbers: string[], event: EmergencyEvent): Promise<void> {
-    sosLogger.info(LOG_SOURCE, 'Sending real Twilio WhatsApp API Request...');
+    sosLogger.info(LOG_SOURCE, 'Sending Emergency Request to Secure Node.js Backend...');
     
-    // Prefer the structured JSON payload if available, else fallback to custom string message
     const rawPayload = (event as any).payload || (event as any).customMessage || 'Emergency!';
-    
     let msg = '';
     if ((event as any).customMessage) {
         msg = (event as any).customMessage;
@@ -26,44 +24,44 @@ export class TwilioService implements IWhatsAppService, ISMSService {
         msg = rawPayload;
     }
 
-    for (const phone of phoneNumbers) {
-      const to = phone.startsWith('+') ? phone : `+91${phone.replace(/[^0-9]/g, '')}`;
-      if (!to || to === '+91') continue;
-
-      const details = {
-        To: `whatsapp:${to}`,
-        From: this.twilioWhatsAppNumber,
-        Body: msg,
-      };
-
-      const formBody = Object.keys(details)
-        .map(key => encodeURIComponent(key) + '=' + encodeURIComponent((details as any)[key]))
-        .join('&');
-
-      try {
-        const response = await fetch(`https://api.twilio.com/2010-04-01/Accounts/${this.accountSid}/Messages.json`, {
-          method: 'POST',
-          headers: {
-            'Authorization': 'Basic ' + btoa(`${this.accountSid}:${this.authToken}`),
-            'Content-Type': 'application/x-www-form-urlencoded'
-          },
-          body: formBody
-        });
-        
-        if (!response.ok) {
-           const err = await response.text();
-           sosLogger.warn(LOG_SOURCE, 'Twilio WhatsApp API Error', { error: err });
-        } else {
-           sosLogger.info(LOG_SOURCE, 'Twilio WhatsApp Message sent successfully to ' + to);
-        }
-      } catch (e) {
-        sosLogger.warn(LOG_SOURCE, 'Network error while calling Twilio', { error: String(e) });
+    try {
+      const user = auth.currentUser;
+      if (!user) {
+         sosLogger.warn(LOG_SOURCE, 'No authenticated user found. Backend request may fail if strict verification is on.');
       }
+      
+      const idToken = user ? await user.getIdToken() : 'mock_token_for_unauthenticated_state';
+
+      const response = await fetch(`${BACKEND_URL}/api/emergency/dispatch`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${idToken}`
+        },
+        body: JSON.stringify({
+          phones: phoneNumbers,
+          payload: (event as any).payload || {},
+          customMessage: msg
+        })
+      });
+      
+      if (!response.ok) {
+         const err = await response.text();
+         sosLogger.warn(LOG_SOURCE, 'Secure Backend API Error', { error: err });
+      } else {
+         const data = await response.json();
+         sosLogger.info(LOG_SOURCE, 'Secure Backend processed emergency dispatch successfully', { results: data.results });
+      }
+    } catch (e) {
+      sosLogger.warn(LOG_SOURCE, 'Network error while calling Secure Backend', { error: String(e) });
+      // Fallback to Native SMS if Backend is totally unreachable
+      sosLogger.info(LOG_SOURCE, 'Attempting Native SMS fallback due to Backend failure...');
+      await this.sendOfflineSMS(phoneNumbers, event);
     }
   }
 
   async sendOfflineSMS(phoneNumbers: string[], event: EmergencyEvent): Promise<void> {
-    sosLogger.info(LOG_SOURCE, 'Evaluating SMS routing...');
+    sosLogger.info(LOG_SOURCE, 'Evaluating offline/native SMS routing...');
     
     let msg = '';
     if ((event as any).customMessage) {
@@ -86,45 +84,39 @@ export class TwilioService implements IWhatsAppService, ISMSService {
         }
         return;
       } catch (e) {
-        sosLogger.warn(LOG_SOURCE, 'Native SMS failed. Falling back to Twilio API.', { error: String(e) });
+        sosLogger.warn(LOG_SOURCE, 'Native SMS failed. Falling back to secure backend SMS.', { error: String(e) });
       }
+    } else {
+       sosLogger.info(LOG_SOURCE, 'Native SMS unavailable. Routing to backend Twilio SMS API...');
     }
 
-    sosLogger.info(LOG_SOURCE, 'Native SMS unavailable. Routing to backend Twilio SMS API...');
+    // Backend Fallback for SMS
+    try {
+      const user = auth.currentUser;
+      const idToken = user ? await user.getIdToken() : 'mock_token_for_unauthenticated_state';
 
-    for (const phone of phoneNumbers) {
-      const to = phone.startsWith('+') ? phone : `+91${phone.replace(/[^0-9]/g, '')}`;
-      if (!to || to === '+91') continue;
-
-      const details = {
-        To: to,
-        From: this.twilioNumber,
-        Body: msg,
-      };
-
-      const formBody = Object.keys(details)
-        .map(key => encodeURIComponent(key) + '=' + encodeURIComponent((details as any)[key]))
-        .join('&');
-
-      try {
-        const response = await fetch(`https://api.twilio.com/2010-04-01/Accounts/${this.accountSid}/Messages.json`, {
-          method: 'POST',
-          headers: {
-            'Authorization': 'Basic ' + btoa(`${this.accountSid}:${this.authToken}`),
-            'Content-Type': 'application/x-www-form-urlencoded'
-          },
-          body: formBody
-        });
-        
-        if (!response.ok) {
-           const err = await response.text();
-           sosLogger.warn(LOG_SOURCE, 'Twilio SMS API Error', { error: err });
-        } else {
-           sosLogger.info(LOG_SOURCE, 'Twilio SMS sent successfully to ' + to);
-        }
-      } catch (e) {
-        sosLogger.warn(LOG_SOURCE, 'Network error while calling Twilio SMS', { error: String(e) });
+      const response = await fetch(`${BACKEND_URL}/api/emergency/dispatch`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${idToken}`
+        },
+        body: JSON.stringify({
+          phones: phoneNumbers,
+          payload: (event as any).payload || {},
+          customMessage: msg,
+          type: 'sms' // Tell backend to force SMS mode
+        })
+      });
+      
+      if (!response.ok) {
+         const err = await response.text();
+         sosLogger.warn(LOG_SOURCE, 'Secure Backend SMS API Error', { error: err });
+      } else {
+         sosLogger.info(LOG_SOURCE, 'Secure Backend processed emergency SMS successfully');
       }
+    } catch (e) {
+      sosLogger.warn(LOG_SOURCE, 'Network error while calling Secure Backend for SMS', { error: String(e) });
     }
   }
 }

@@ -69,10 +69,16 @@ export class SpeechService {
       const processedSamples = this.reduceNoise(buffer.samples);
 
       // Step 2: Check if there's meaningful audio (not just silence/noise)
-      const hasVoice = this.detectVoiceActivity(processedSamples);
+      let hasVoice = this.detectVoiceActivity(processedSamples);
+
+      // Retry mechanism if VAD fails initially
+      if (!hasVoice) {
+        sosLogger.debug(LOG_SOURCE, 'No voice activity detected, retrying VAD with lower threshold...');
+        hasVoice = this.detectVoiceActivity(processedSamples, true); // true = use lower threshold for retry
+      }
 
       if (!hasVoice) {
-        sosLogger.debug(LOG_SOURCE, 'No voice activity detected');
+        sosLogger.debug(LOG_SOURCE, 'Still no voice activity detected after retry');
         return this.createEmptyResult();
       }
 
@@ -174,7 +180,7 @@ export class SpeechService {
    * Simple voice activity detection (VAD).
    * Checks if the audio energy exceeds a threshold indicating human speech.
    */
-  private detectVoiceActivity(samples: Float32Array): boolean {
+  private detectVoiceActivity(samples: Float32Array, isRetry = false): boolean {
     if (samples.length === 0) return false;
 
     // Calculate RMS energy
@@ -184,8 +190,8 @@ export class SpeechService {
     }
     const rms = Math.sqrt(sumSquares / samples.length);
 
-    // Threshold for voice detection (empirically tuned)
-    const VOICE_THRESHOLD = 0.02;
+    // Threshold for voice detection (lowered for Android real mic)
+    const VOICE_THRESHOLD = isRetry ? 0.002 : 0.005;
 
     // Also check zero-crossing rate (speech has characteristic ZCR)
     let zeroCrossings = 0;
@@ -199,9 +205,9 @@ export class SpeechService {
     }
     const zcr = zeroCrossings / samples.length;
 
-    // Speech typically has ZCR between 0.01 and 0.15
+    // Speech typically has ZCR between 0.01 and 0.25 on raw mic input
     const hasVoiceEnergy = rms > VOICE_THRESHOLD;
-    const hasVoiceZCR = zcr > 0.01 && zcr < 0.20;
+    const hasVoiceZCR = zcr > 0.005 && zcr < 0.30;
 
     return hasVoiceEnergy && hasVoiceZCR;
   }
@@ -232,15 +238,9 @@ export class SpeechService {
     _samples: Float32Array,
     _sampleRate: number
   ): Promise<SpeechResult> {
-    // Simulated STT for demonstration purposes
-    return {
-      text: 'help me',
-      language: this.preferredLanguage,
-      confidence: 0.95,
-      segments: [{ text: 'help me', startMs: 0, endMs: 1000, confidence: 0.95 }],
-      noiseReduced: true,
-      timestamp: Date.now(),
-    };
+    // If native STT is not configured, throw so it falls back to empty result
+    // We NO LONGER mock transcription with hardcoded 'help me' based on user request.
+    throw new Error('Native STT not implemented yet');
   }
 
   /**

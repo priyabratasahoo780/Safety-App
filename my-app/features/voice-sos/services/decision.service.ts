@@ -267,14 +267,31 @@ export class DecisionEngine {
     }
 
     // EXTREME DISTRESS OVERRIDE (National Hackathon Rule)
-    // If the user repeatedly shouts an emergency keyword (Keyword > 85) 
-    // AND shows extreme panic (Emotion > 85), immediately trigger emergency 
-    // even if environmental signals (motion/location) are weak.
-    if (signals.keywordScore > 85 && signals.emotionScore > 85) {
-      adjustedScore = Math.max(adjustedScore, 95); // Force > 90%
+    // Trigger immediately only when:
+    // - An emergency keyword is repeated (for example "HELP HELP", "BACHAO BACHAO").
+    // - Keyword score is greater than 80.
+    // - Emotion score is greater than 80 OR danger sound score is greater than 80.
+    
+    const textLower = (signals.speechText || '').toLowerCase();
+    const keywordLower = (signals.detectedKeyword || '').toLowerCase();
+    
+    let isRepeated = false;
+    if (keywordLower && textLower) {
+      const escapedKeyword = keywordLower.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      const regex = new RegExp(`\\b${escapedKeyword}\\b`, 'g');
+      const matches = textLower.match(regex);
+      if (matches && matches.length >= 2) {
+        isRepeated = true;
+      }
+    }
+
+    if (isRepeated && signals.keywordScore > 80 && (signals.emotionScore > 80 || signals.soundScore > 80)) {
+      adjustedScore = Math.max(adjustedScore, 100); // Force to 100
       sosLogger.info(LOG_SOURCE, 'Escalation bypass: EXTREME DISTRESS OVERRIDE applied', {
         keywordScore: signals.keywordScore,
         emotionScore: signals.emotionScore,
+        soundScore: signals.soundScore,
+        isRepeated,
         boostedScore: adjustedScore,
       });
     }

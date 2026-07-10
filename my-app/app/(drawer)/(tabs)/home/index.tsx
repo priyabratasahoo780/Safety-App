@@ -171,8 +171,8 @@ const PulseDot = ({ color }: { color: string }) => {
 const SOSButton = ({ isActive, onActivate }: any) => {
   const scale = useRef(new Animated.Value(1)).current;
   const progress = useRef(new Animated.Value(0)).current;
-  const holdTimer = useRef<any>(null);
-  const warningTimer = useRef<any>(null);
+  const holdTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const warningTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const isHeldSuccessfully = useRef(false);
 
   useEffect(() => {
@@ -1086,6 +1086,27 @@ const styles = StyleSheet.create({
   // SOS Card
   sosCard: {
     marginBottom: 24,
+  },
+  sosButtonWrapper: {
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  sosContainer: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginVertical: 10,
+  },
+  sosMiddleCircle: {
+    width: 130,
+    height: 130,
+    borderRadius: 65,
+    backgroundColor: COLORS.bg,
+    justifyContent: 'center',
+    alignItems: 'center',
+    shadowColor: COLORS.shadow,
+    shadowOffset: { width: -4, height: -4 },
+    shadowOpacity: 0.8,
+    shadowRadius: 8,
   },
   sosHeader: {
     alignItems: 'center',

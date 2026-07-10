@@ -21,6 +21,7 @@ import {
 } from '../../voice-sos/utils/constants';
 import { sosLogger } from '../../voice-sos/utils/logger';
 import * as Location from 'expo-location';
+import { authService } from '../../../src/services/authService';
 
 import { IEmergencyRepository } from '../interfaces/IEmergencyRepository';
 import { IStorageService } from '../interfaces/IStorageService';
@@ -142,6 +143,16 @@ export class EmergencyService {
     
     const phones = guardians.map(g => g.phone).filter(p => p);
 
+    let userName = "Your Loved One";
+    try {
+      const userProfile = await authService.getUserProfile();
+      if (userProfile && userProfile.fullName) {
+        userName = userProfile.fullName;
+      }
+    } catch (e) {
+      sosLogger.warn(LOG_SOURCE, 'Could not fetch user profile for real name', { error: String(e) });
+    }
+
     // 🔴 PARALLEL EXECUTION: GPS RETRY AND FAST EVIDENCE (5 SECONDS)
     const gpsPromise = (async () => {
       let gpsAttempts = 0;
@@ -163,10 +174,10 @@ export class EmergencyService {
     const fastEvidencePromise = (async () => {
       let audioUrl = '';
       let videoUrl = '';
-      let isSuccess = false;
       let attempts = 0;
 
-      while (!isSuccess && attempts < 3) {
+      // Loop until BOTH Audio and Video URLs are valid
+      while ((!audioUrl || !videoUrl) && attempts < 50) {
         attempts++;
         try {
           sosLogger.info(LOG_SOURCE, `Fast Evidence Collection Attempt ${attempts}...`);
@@ -182,23 +193,27 @@ export class EmergencyService {
           const [audioUri, videoUri] = await Promise.all(evidencePromises);
 
           const uploadPromises = [];
-          if (audioUri) uploadPromises.push(this.deps.storageService.uploadEvidence(eventId, `audio_initial_${Date.now()}.m4a`, audioUri, 'audio').then(url => { audioUrl = url; }));
-          if (videoUri) uploadPromises.push(this.deps.storageService.uploadEvidence(eventId, `video_initial_${Date.now()}.mp4`, videoUri, 'video').then(url => { videoUrl = url; }));
+          if (audioUri && !audioUrl) uploadPromises.push(this.deps.storageService.uploadEvidence(eventId, `audio_initial_${Date.now()}.m4a`, audioUri, 'audio').then(url => { audioUrl = url; }));
+          if (videoUri && !videoUrl) uploadPromises.push(this.deps.storageService.uploadEvidence(eventId, `video_initial_${Date.now()}.mp4`, videoUri, 'video').then(url => { videoUrl = url; }));
 
           await Promise.all(uploadPromises);
           
-          sosLogger.info(LOG_SOURCE, 'Fast Evidence uploaded successfully. Updating Emergency Dashboard...');
-          await this.deps.emergencyRepo.updateEmergencySession(eventId, {
-            audioUrl: audioUrl || null,
-            videoUrl: videoUrl || null,
-          });
-          isSuccess = true;
+          if (audioUrl && videoUrl) {
+            sosLogger.info(LOG_SOURCE, 'Fast Evidence uploaded successfully. Updating Emergency Dashboard...');
+            await this.deps.emergencyRepo.updateEmergencySession(eventId, {
+              audioUrl: audioUrl,
+              videoUrl: videoUrl,
+            });
+            break; // Success!
+          } else {
+             throw new Error('Upload complete but URLs are still missing.');
+          }
         } catch (error) {
           sosLogger.warn(LOG_SOURCE, `Fast Evidence collection failed on attempt ${attempts}, retrying...`, { error });
           await new Promise(res => setTimeout(res, 2000));
         }
       }
-      return { audioUrl, videoUrl, isSuccess };
+      return { audioUrl, videoUrl, isSuccess: !!(audioUrl && videoUrl) };
     })();
 
     // 🔴 WAIT FOR BOTH GPS AND FAST EVIDENCE TO COMPLETE BEFORE DISPATCHING
@@ -207,8 +222,8 @@ export class EmergencyService {
     // 🔴 FALLBACK RESOLUTION FOR GPS
     let finalLat: string | number = 'Unknown';
     let finalLng: string | number = 'Unknown';
-    let finalMapLink = 'GPS acquisition failed';
-    let finalAddress = 'GPS acquisition failed';
+    let finalMapLink = 'Unknown Location';
+    let finalAddress = 'Unknown Location';
 
     if (gpsResult) {
       finalLat = gpsResult.coords.latitude;
@@ -224,31 +239,36 @@ export class EmergencyService {
 
     // 🔴 EXACT PAYLOAD FORMAT AS REQUESTED
     const timeStr = new Date(event.timestamp).toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' });
+    const detectedConditions = event.keyword ? `Wake word "${event.keyword}"` : 'Suspicious activity';
     
     let msg = `🚨 *SAFESPHERE EMERGENCY ALERT* 🚨\n\n`;
-    msg += `*User Name:* Your Loved One\n`;
+    msg += `*User Name:* ${userName}\n`;
     msg += `*Emergency Status:* CRITICAL - DANGER DETECTED\n\n`;
     msg += `📍 *Current Address:* ${finalAddress}\n`;
     msg += `🗺️ *Google Maps Link:* ${finalMapLink}\n`;
-    msg += `🔋 *Battery Percentage:* ${event.battery !== undefined ? event.battery + '%' : 'Unknown'}\n`;
+    msg += `🔋 *Battery Percentage:* ${event.battery !== undefined ? Math.round((event.battery <= 1 ? event.battery * 100 : event.battery)) + '%' : 'Unknown'}\n`;
     msg += `📶 *Network Status:* ${event.network || 'Unknown'}\n`;
-    msg += `⏰ *Current Time:* ${timeStr}\n\n`;
+    msg += `⏰ *Current Time:* ${timeStr}\n`;
+    msg += `🧠 *AI Confidence Score:* ${event.confidenceScore}%\n`;
+    msg += `⚠️ *Triggered Conditions:* ${detectedConditions}\n\n`;
     msg += `🛡️ *EMERGENCY DASHBOARD URL:*\nhttps://safesphere.app/track/${eventId}\n\n`;
-    msg += `🎙️ *Audio Evidence URL:* ${evidenceResult.audioUrl || 'Not Available'}\n`;
-    msg += `📹 *Video Evidence URL:* ${evidenceResult.videoUrl || 'Not Available'}\n\n`;
-    msg += `Please monitor the dashboard or check the evidence URLs immediately.`;
+    msg += `🎙️ *Audio Evidence URL:* ${evidenceResult.audioUrl}\n`;
+    msg += `📹 *Video Evidence URL:* ${evidenceResult.videoUrl}\n\n`;
+    msg += `Please monitor the dashboard immediately.`;
 
     const emergencyPayload = {
-      userName: "Your Loved One",
+      userName: userName,
       emergencyStatus: "CRITICAL - DANGER DETECTED",
       currentAddress: finalAddress,
       googleMapsLink: finalMapLink,
-      batteryPercentage: event.battery !== undefined ? event.battery.toString() : 'Unknown',
+      batteryPercentage: event.battery !== undefined ? Math.round((event.battery <= 1 ? event.battery * 100 : event.battery)).toString() + '%' : 'Unknown',
       networkStatus: event.network || 'Unknown',
       currentTime: timeStr,
+      aiConfidenceScore: event.confidenceScore.toString(),
+      triggeredConditions: detectedConditions,
       emergencyDashboardUrl: `https://safesphere.app/track/${eventId}`,
-      audioEvidenceUrl: evidenceResult.audioUrl || 'Not Available',
-      videoEvidenceUrl: evidenceResult.videoUrl || 'Not Available',
+      audioEvidenceUrl: evidenceResult.audioUrl,
+      videoEvidenceUrl: evidenceResult.videoUrl,
     };
 
     if (phones.length > 0) {

@@ -35,6 +35,7 @@ import { FirebaseStorageService } from '../../emergency/repositories/FirebaseSto
 import { AudioEvidenceService } from '../services/evidence.service';
 import { MockNotificationService } from '../../guardian/services/MockNotificationService';
 import { TwilioService } from '../../adapters/providers/TwilioService';
+import { TwilioCallService } from '../../adapters/providers/TwilioCallService';
 import { Linking } from 'react-native';
 
 const LOG_SOURCE = 'useVoiceDetection';
@@ -97,7 +98,7 @@ export function useVoiceDetection(options: UseVoiceDetectionOptions = {}) {
       notificationService: new MockNotificationService(),
       whatsAppService: new TwilioService(),
       smsService: new TwilioService(),
-      emergencyCallingService: { triggerAutomatedCall: async () => console.log('Mock Automated Call') }
+      emergencyCallingService: new TwilioCallService()
     }),
   });
 
@@ -202,6 +203,7 @@ export function useVoiceDetection(options: UseVoiceDetectionOptions = {}) {
         const wakeResult = s.wakeWord.detect(chunk);
 
         if (wakeResult.detected) {
+          sosLogger.debug(LOG_SOURCE, 'Pipeline Step 1: Wake word detected', { word: wakeResult.word });
           setLastWakeWord(wakeResult.word);
           setPipelineState(VoicePipelineState.WAKE_DETECTED);
 
@@ -212,6 +214,7 @@ export function useVoiceDetection(options: UseVoiceDetectionOptions = {}) {
           setPipelineState(VoicePipelineState.PROCESSING);
 
           // Run Step 3, 4, 5 in parallel
+          sosLogger.debug(LOG_SOURCE, 'Pipeline Step 2: Running Parallel AI Analysis (Speech, Emotion, Sound)');
           const [speechResult, emotionResult, soundResult] = await Promise.all([
             s.speech.transcribe(fullBuffer),
             s.emotion.analyze(fullBuffer),
@@ -219,6 +222,7 @@ export function useVoiceDetection(options: UseVoiceDetectionOptions = {}) {
           ]);
 
           // Step 7 & 10: AI Decision Engine with False Alarm Prevention
+          sosLogger.debug(LOG_SOURCE, 'Pipeline Step 3: Decision Engine Evaluation');
           const decision = s.decision.evaluate({
             keywordScore: wakeResult.confidence * 100,
             emotionScore: emotionResult.panicScore,
@@ -242,6 +246,7 @@ export function useVoiceDetection(options: UseVoiceDetectionOptions = {}) {
 
           // Step 8 & 9: Trigger Emergency if threshold met
           if (decision.shouldTrigger) {
+            sosLogger.debug(LOG_SOURCE, 'Pipeline Step 4: EMERGENCY TRIGGERED! Initiating Dispatch protocol.');
             await s.emergency.triggerEmergency({
               decision,
               emotionBreakdown: emotionResult.emotions,
