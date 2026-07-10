@@ -1,6 +1,6 @@
 import { Tabs, useRouter } from 'expo-router';
 import React from 'react';
-import { StyleSheet, View, Text, TouchableOpacity, Platform } from 'react-native';
+import { StyleSheet, View, Text, TouchableOpacity, Platform, DeviceEventEmitter } from 'react-native';
 import { Feather, MaterialCommunityIcons } from '@expo/vector-icons';
 import { useVoiceDetection } from '../../../features/voice-sos/hooks/useVoiceDetection';
 
@@ -8,13 +8,21 @@ export default function TabLayout() {
   const router = useRouter();
 
   // Globally initialize Voice/Sound SOS detection
-  const { isEmergency } = useVoiceDetection({ autoStart: true });
+  const { isEmergency, resolveEmergency, stop } = useVoiceDetection({ autoStart: true });
 
   React.useEffect(() => {
     if (isEmergency) {
       router.push('/sos/active');
     }
   }, [isEmergency]);
+
+  React.useEffect(() => {
+    const sub = DeviceEventEmitter.addListener('stop_sos', () => {
+      if (resolveEmergency) resolveEmergency();
+      if (stop) stop();
+    });
+    return () => sub.remove();
+  }, [resolveEmergency, stop]);
 
   return (
     <Tabs
