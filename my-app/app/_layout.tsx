@@ -8,6 +8,7 @@ import "react-native-reanimated";
 import { useEffect } from "react";
 import { useColorScheme } from "@/hooks/use-color-scheme";
 import { authService } from "@/src/services/authService";
+import { Platform, View, StyleSheet } from "react-native";
 
 const publishableKey = process.env.EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY!;
 
@@ -79,10 +80,28 @@ export default function RootLayout() {
     <ClerkProvider publishableKey={publishableKey} tokenCache={tokenCache}>
       <SafeAreaProvider>
         <ThemeProvider value={colorScheme === "dark" ? DarkTheme : DefaultTheme}>
-          <InitialLayout />
+          <View style={styles.webContainer}>
+            <InitialLayout />
+          </View>
           <StatusBar style="auto" />
         </ThemeProvider>
       </SafeAreaProvider>
     </ClerkProvider>
   );
 }
+
+const styles = StyleSheet.create({
+  webContainer: {
+    flex: 1,
+    width: '100%',
+    ...(Platform.OS === 'web' && {
+      maxWidth: 500,
+      marginHorizontal: 'auto',
+      backgroundColor: '#FFFFFF',
+      boxShadow: '0 0 20px rgba(0,0,0,0.1)',
+      borderLeftWidth: 1,
+      borderRightWidth: 1,
+      borderColor: '#E5E7EB',
+    }),
+  },
+});

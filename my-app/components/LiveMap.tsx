@@ -19,7 +19,7 @@ export default function LiveMap({ location }: any) {
         />
       ) : (
         <Image 
-          source={require('@/assets/images/map_bg.png')} 
+          source={require('@/assets/images/map_bg.jpg')} 
           style={{ width: '100%', height: '100%' }} 
           contentFit="cover" 
         />

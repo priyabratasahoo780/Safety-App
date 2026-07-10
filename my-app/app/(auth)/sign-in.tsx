@@ -91,7 +91,7 @@ export default function SignInScreen() {
         {/* Logo and Brand Header */}
         <View style={styles.headerContainer}>
           <Image
-            source={require('@/assets/images/safesphere_logo.png')}
+            source={require('@/assets/images/safesphere_logo.jpg')}
             style={styles.logo}
             contentFit="contain"
           />

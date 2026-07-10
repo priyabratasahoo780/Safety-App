@@ -27,7 +27,7 @@ export default function OnboardingScreen() {
       {/* Main Illustration */}
       <View style={styles.illustrationContainer}>
         <Image
-          source={require('@/assets/images/safesphere_illustration.png')}
+          source={require('@/assets/images/safesphere_illustration.jpg')}
           style={styles.illustration}
           contentFit="contain"
         />

@@ -395,7 +395,7 @@ export default function HomeScreen() {
             <View>
               <View style={styles.greetingContainer}>
                 <Image
-                  source={require('@/assets/images/safesphere_logo.png')}
+                  source={require('@/assets/images/safesphere_logo.jpg')}
                   style={{ width: 18, height: 18, marginRight: 6 }}
                   contentFit="contain"
                 />
