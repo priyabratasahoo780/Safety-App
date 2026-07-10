@@ -26,11 +26,13 @@ import {
 import { EMERGENCY_THRESHOLD, HIGH_ALERT_THRESHOLD } from '../utils/constants';
 import { sosLogger } from '../utils/logger';
 import { areSOSPermissionsGranted, checkAllSOSPermissions } from '../utils/permissions';
+import { authService } from '../../../src/services/authService';
 import { useRiskAnalysis } from './useRiskAnalysis';
 
 import { FirebaseEmergencyRepository } from '../../emergency/repositories/FirebaseEmergencyRepository';
-import { MockStorageService } from '../../emergency/services/MockStorageService';
 import { FirebaseGuardianRepository } from '../../guardian/repositories/FirebaseGuardianRepository';
+import { FirebaseStorageService } from '../../emergency/repositories/FirebaseStorageService';
+import { AudioEvidenceService } from '../services/evidence.service';
 import { MockNotificationService } from '../../guardian/services/MockNotificationService';
 import { Linking } from 'react-native';
 
@@ -88,24 +90,33 @@ export function useVoiceDetection(options: UseVoiceDetectionOptions = {}) {
     decision: new DecisionEngine(),
     emergency: new EmergencyService({
       emergencyRepo: new FirebaseEmergencyRepository(),
-      storageService: new MockStorageService(),
+      storageService: new FirebaseStorageService(),
+      evidenceService: new AudioEvidenceService(),
       guardianRepo: new FirebaseGuardianRepository(),
       notificationService: new MockNotificationService(),
       whatsAppService: { 
         sendWhatsAppAlert: async (phones: string[], event: EmergencyEvent) => {
           if (!phones || phones.length === 0) return;
+          
+          const profile = await authService.getUserProfile();
+          const userName = profile?.name ? profile.name.toUpperCase() : 'YOUR LOVED ONE';
+          const timeStr = new Date().toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' });
           const locStr = event.location ? `${event.location.latitude},${event.location.longitude}` : 'Unknown';
-          const msg = `🚨 EMERGENCY SOS! I need help immediately. My location: https://maps.google.com/?q=${locStr} (Triggered by SafeSphere AI)`;
+          const mapLink = event.location ? `https://maps.google.com/?q=${locStr}` : 'Location unavailable';
+          
+          let msg = `🚨 EMERGENCY ALERT FROM ${userName} 🚨\n\nI need help immediately! My live location and safety details are being shared with you.\n\n📍 *Location*: ${mapLink}\n⏰ *Time*: ${timeStr}\n🔋 *Battery*: ${event.battery !== undefined ? event.battery + '%' : 'Unknown'}\n📶 *Network*: ${event.network || 'Unknown'}\n⚠️ *Triggered By*: SafeSphere AI Detection\n\nPlease contact me or the authorities immediately!`;
+          
+          // Use custom message if provided (e.g. for evidence followup)
+          if ((event as any).customMessage) {
+            msg = (event as any).customMessage;
+          }
+          
           // Open WhatsApp with the first contact
           const phone = phones[0].replace(/[^0-9]/g, '');
           if (!phone) return;
           
-          let url = '';
-          if (Platform.OS === 'web') {
-            url = `https://wa.me/${phone}?text=${encodeURIComponent(msg)}`;
-          } else {
-            url = `whatsapp://send?phone=${phone}&text=${encodeURIComponent(msg)}`;
-          }
+          // wa.me works universally on Android, iOS, and Web
+          const url = `https://wa.me/${phone}?text=${encodeURIComponent(msg)}`;
           
           try {
             await Linking.openURL(url);
@@ -121,8 +132,17 @@ export function useVoiceDetection(options: UseVoiceDetectionOptions = {}) {
           const validPhones = phones.map(p => p.replace(/[^0-9]/g, '')).filter(p => p.length > 0);
           if (validPhones.length === 0) return;
           
+          const profile = await authService.getUserProfile();
+          const userName = profile?.name ? profile.name.toUpperCase() : 'YOUR LOVED ONE';
+          const timeStr = new Date().toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' });
           const locStr = event.location ? `${event.location.latitude},${event.location.longitude}` : 'Unknown';
-          const msg = `🚨 EMERGENCY SOS! I need help immediately. My location: https://maps.google.com/?q=${locStr}`;
+          const mapLink = event.location ? `https://maps.google.com/?q=${locStr}` : 'Location unavailable';
+          
+          let msg = `🚨 EMERGENCY ALERT FROM ${userName} 🚨\nHelp needed! Location: ${mapLink}\nTime: ${timeStr}\nBattery: ${event.battery !== undefined ? event.battery + '%' : 'Unknown'}\nTriggered By: SafeSphere AI`;
+          
+          if ((event as any).customMessage) {
+            msg = (event as any).customMessage;
+          }
           
           if (Platform.OS === 'web') {
             console.log('SMS fallback for web: Cannot send native SMS from browser. Message:', msg);
