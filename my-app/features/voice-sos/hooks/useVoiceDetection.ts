@@ -28,10 +28,11 @@ import { sosLogger } from '../utils/logger';
 import { areSOSPermissionsGranted, checkAllSOSPermissions } from '../utils/permissions';
 import { useRiskAnalysis } from './useRiskAnalysis';
 
-import { MockEmergencyRepository } from '../../emergency/repositories/MockEmergencyRepository';
+import { FirebaseEmergencyRepository } from '../../emergency/repositories/FirebaseEmergencyRepository';
 import { MockStorageService } from '../../emergency/services/MockStorageService';
-import { MockGuardianRepository } from '../../guardian/repositories/MockGuardianRepository';
+import { FirebaseGuardianRepository } from '../../guardian/repositories/FirebaseGuardianRepository';
 import { MockNotificationService } from '../../guardian/services/MockNotificationService';
+import { Linking } from 'react-native';
 
 const LOG_SOURCE = 'useVoiceDetection';
 
@@ -86,12 +87,40 @@ export function useVoiceDetection(options: UseVoiceDetectionOptions = {}) {
     sound: new SoundService(),
     decision: new DecisionEngine(),
     emergency: new EmergencyService({
-      emergencyRepo: new MockEmergencyRepository(),
+      emergencyRepo: new FirebaseEmergencyRepository(),
       storageService: new MockStorageService(),
-      guardianRepo: new MockGuardianRepository(),
+      guardianRepo: new FirebaseGuardianRepository(),
       notificationService: new MockNotificationService(),
-      whatsAppService: { sendWhatsAppAlert: async () => console.log('Mock WhatsApp Alert') },
-      smsService: { sendOfflineSMS: async () => console.log('Mock SMS Alert') },
+      whatsAppService: { 
+        sendWhatsAppAlert: async (phones: string[], event: EmergencyEvent) => {
+          if (!phones || phones.length === 0) return;
+          const locStr = event.location ? `${event.location.latitude},${event.location.longitude}` : 'Unknown';
+          const msg = `🚨 EMERGENCY SOS! I need help immediately. My location: https://maps.google.com/?q=${locStr} (Triggered by SafeSphere AI)`;
+          // Open WhatsApp with the first contact
+          const phone = phones[0].replace(/[^0-9]/g, '');
+          const url = `whatsapp://send?phone=${phone}&text=${encodeURIComponent(msg)}`;
+          try {
+            await Linking.openURL(url);
+          } catch(e) {
+            console.log('WhatsApp not installed or error:', e);
+          }
+        } 
+      },
+      smsService: { 
+        sendOfflineSMS: async (phones: string[], event: EmergencyEvent) => {
+          if (!phones || phones.length === 0) return;
+          const locStr = event.location ? `${event.location.latitude},${event.location.longitude}` : 'Unknown';
+          const msg = `🚨 EMERGENCY SOS! I need help immediately. My location: https://maps.google.com/?q=${locStr}`;
+          
+          const phoneList = Platform.OS === 'ios' ? phones.join(',') : phones.join(';');
+          const url = `sms:${phoneList}?body=${encodeURIComponent(msg)}`;
+          try {
+            await Linking.openURL(url);
+          } catch(e) {
+            console.log('SMS error:', e);
+          }
+        } 
+      },
       emergencyCallingService: { triggerAutomatedCall: async () => console.log('Mock Automated Call') }
     }),
   });

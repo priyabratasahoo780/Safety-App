@@ -70,6 +70,20 @@ export const authService = {
     }
   },
 
+  // Get User Profile (including trusted contacts)
+  async getUserProfile() {
+    try {
+      const user = auth.currentUser;
+      if (!user) return null;
+      
+      const userDoc = await getDoc(doc(db, "users", user.uid));
+      return userDoc.exists() ? userDoc.data() : null;
+    } catch (error) {
+      console.error("Error fetching user profile:", error);
+      return null;
+    }
+  },
+
   // Log in with email and password
   async login(email: string, password: string) {
     try {
