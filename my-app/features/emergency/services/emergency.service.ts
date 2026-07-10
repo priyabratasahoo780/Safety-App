@@ -20,6 +20,7 @@ import {
   MAX_TIMELINE_ENTRIES,
 } from '../../voice-sos/utils/constants';
 import { sosLogger } from '../../voice-sos/utils/logger';
+import * as Location from 'expo-location';
 
 import { IEmergencyRepository } from '../interfaces/IEmergencyRepository';
 import { IStorageService } from '../interfaces/IStorageService';
@@ -61,7 +62,7 @@ export interface EmergencyDependencies {
 export class EmergencyService {
   private config: EmergencyConfig;
   private deps: EmergencyDependencies;
-  
+
   private emergencyListeners: OnEmergencyCallback[] = [];
   private lastEmergencyTime: number = 0;
   private currentEmergency: EmergencyEvent | null = null;
@@ -94,6 +95,11 @@ export class EmergencyService {
     language: SupportedLanguage;
     timeline: TimelineEntry[];
   }): Promise<EmergencyEvent> {
+    if (this.currentEmergency && this.currentEmergency.status === EmergencyStatus.EMERGENCY) {
+      sosLogger.info(LOG_SOURCE, 'Emergency already active. Updating evidence but skipping duplicate dispatch.');
+      return this.currentEmergency;
+    }
+    
     if (this.isInCooldown()) {
       sosLogger.warn(LOG_SOURCE, 'Emergency trigger in cooldown period, ignoring');
       if (this.currentEmergency) return this.currentEmergency;
@@ -101,25 +107,19 @@ export class EmergencyService {
     }
 
     this.emergencyCounter++;
-    
+
     // Step 2, 6, 7, 8: Capture Context, GPS, Battery, Network, and Timeline
     const event = this.createEmergencyEvent(params);
     this.currentEmergency = event;
     this.lastEmergencyTime = Date.now();
 
     sosLogger.emergency(LOG_SOURCE, '🚨 FULLY AUTOMATIC AI EMERGENCY INITIATED', { id: event.id });
-    
+
     // Step 1: Create Emergency Session
     await this.deps.emergencyRepo.createEmergencySession(event);
 
     // Fetch Guardians
-    const guardians = await this.deps.guardianRepo.getRegisteredGuardians('current_user'); // Hardcoded ID for now
-
-    // Step 9, 10, 11, 12: Trigger Future Notification Layers concurrently
-    this.dispatchNotifications(guardians, event).catch(e => sosLogger.warn(LOG_SOURCE, 'Notification Dispatch Failed', e));
-
-    // Step 4, 5, 13: Capture Audio/Video and Upload Evidence
-    this.collectAndUploadEvidence(event.id, guardians, event).catch(e => sosLogger.warn(LOG_SOURCE, 'Evidence Upload Failed', e));
+    const guardians = await this.deps.guardianRepo.getRegisteredGuardians('current_user'); 
 
     // Step 3: Start Live Location Tracking
     this.startLiveLocationTracking(guardians, event.id);
@@ -127,66 +127,208 @@ export class EmergencyService {
     // Notify internal local listeners (e.g. UI)
     this.notifyListeners(event);
 
+    // 🔴 NEW WORKFLOW: Build Complete Emergency Payload BEFORE dispatching WhatsApp/SMS
+    this.buildAndDispatchCompletePayload(event.id, guardians, event).catch(e => 
+      sosLogger.warn(LOG_SOURCE, 'Fatal error in payload building process', e)
+    );
+
     return event;
   }
 
   // ─── Automated Workflow Implementations ─────────────────────────────────
 
-  private async dispatchNotifications(guardians: any[], event: EmergencyEvent) {
-    sosLogger.info(LOG_SOURCE, 'Dispatching multi-channel notifications...');
-    const results = await Promise.allSettled([
-      this.deps.notificationService.sendEmergencyAlert(guardians, event),
-      this.deps.whatsAppService.sendWhatsAppAlert(guardians.map(g => g.phone), event),
-      this.deps.smsService.sendOfflineSMS(guardians.map(g => g.phone), event),
-      this.deps.emergencyCallingService.triggerAutomatedCall(guardians.map(g => g.phone), 'EMERGENCY ALERT. SafeSphere AI detected critical danger.'),
-    ]);
-    sosLogger.info(LOG_SOURCE, 'Multi-channel notifications dispatched.', { results });
-  }
+  private async buildAndDispatchCompletePayload(eventId: string, guardians: any[], event: EmergencyEvent) {
+    sosLogger.info(LOG_SOURCE, 'Building Complete Emergency Payload. Capturing initial 5-second evidence...');
+    
+    const phones = guardians.map(g => g.phone).filter(p => p);
 
-  private async collectAndUploadEvidence(eventId: string, guardians: any[], event: EmergencyEvent) {
-    sosLogger.info(LOG_SOURCE, 'Starting automated audio recording & upload sequence...');
-    try {
-      const audioUri = await this.deps.evidenceService.recordEvidence(10000); // 10 seconds
-      if (audioUri) {
-        const audioUrl = await this.deps.storageService.uploadEvidence(
-          eventId, 
-          `audio_${Date.now()}.m4a`, 
-          audioUri, 
-          'audio'
-        );
-        
-        // Update the database session with the evidence URL
-        await this.deps.emergencyRepo.updateEmergencySession(eventId, {
-           // Append to a list of URLs in production
-        });
-        
-        sosLogger.info(LOG_SOURCE, `Evidence uploaded successfully to: ${audioUrl}`);
-        
-        // Send follow-up message with the evidence link
-        const msg = `🎙️ *Live Audio Evidence*\nSafeSphere AI has captured a 10-second audio clip from the emergency site.\nListen here: ${audioUrl}`;
-        
-        // Follow-up notification logic:
-        const phones = guardians.map(g => g.phone).filter(p => p);
-        if (phones.length > 0) {
-           await this.deps.whatsAppService.sendWhatsAppAlert(phones, { ...event, customMessage: msg } as any);
+    // 🔴 PARALLEL EXECUTION: GPS RETRY AND FAST EVIDENCE (5 SECONDS)
+    const gpsPromise = (async () => {
+      let gpsAttempts = 0;
+      sosLogger.info(LOG_SOURCE, 'Starting GPS acquisition loop (30s max)...');
+      while (gpsAttempts < 15) { // 15 attempts * 2s = 30s
+        try {
+          const loc = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
+          sosLogger.info(LOG_SOURCE, 'GPS acquired successfully.');
+          return loc;
+        } catch (error) {
+          gpsAttempts++;
+          await new Promise(res => setTimeout(res, 2000));
         }
       }
-    } catch (error) {
-      sosLogger.warn(LOG_SOURCE, 'Evidence Collection/Upload Failed', { error });
+      sosLogger.warn(LOG_SOURCE, 'GPS acquisition failed after 30 seconds.');
+      return null;
+    })();
+
+    const fastEvidencePromise = (async () => {
+      let audioUrl = '';
+      let videoUrl = '';
+      let isSuccess = false;
+      let attempts = 0;
+
+      while (!isSuccess && attempts < 3) {
+        attempts++;
+        try {
+          sosLogger.info(LOG_SOURCE, `Fast Evidence Collection Attempt ${attempts}...`);
+          
+          // Only record 5 seconds for the first payload so dispatch is fast
+          const evidencePromises = [this.deps.evidenceService.recordEvidence(5000)];
+          if (this.deps.evidenceService.recordVideoEvidence) {
+            evidencePromises.push(this.deps.evidenceService.recordVideoEvidence(5000));
+          } else {
+            evidencePromises.push(Promise.resolve(null));
+          }
+          
+          const [audioUri, videoUri] = await Promise.all(evidencePromises);
+
+          const uploadPromises = [];
+          if (audioUri) uploadPromises.push(this.deps.storageService.uploadEvidence(eventId, `audio_initial_${Date.now()}.m4a`, audioUri, 'audio').then(url => { audioUrl = url; }));
+          if (videoUri) uploadPromises.push(this.deps.storageService.uploadEvidence(eventId, `video_initial_${Date.now()}.mp4`, videoUri, 'video').then(url => { videoUrl = url; }));
+
+          await Promise.all(uploadPromises);
+          
+          sosLogger.info(LOG_SOURCE, 'Fast Evidence uploaded successfully. Updating Emergency Dashboard...');
+          await this.deps.emergencyRepo.updateEmergencySession(eventId, {
+            audioUrl: audioUrl || null,
+            videoUrl: videoUrl || null,
+          });
+          isSuccess = true;
+        } catch (error) {
+          sosLogger.warn(LOG_SOURCE, `Fast Evidence collection failed on attempt ${attempts}, retrying...`, { error });
+          await new Promise(res => setTimeout(res, 2000));
+        }
+      }
+      return { audioUrl, videoUrl, isSuccess };
+    })();
+
+    // 🔴 WAIT FOR BOTH GPS AND FAST EVIDENCE TO COMPLETE BEFORE DISPATCHING
+    const [gpsResult, evidenceResult] = await Promise.all([gpsPromise, fastEvidencePromise]);
+
+    // 🔴 FALLBACK RESOLUTION FOR GPS
+    let finalLat: string | number = 'Unknown';
+    let finalLng: string | number = 'Unknown';
+    let finalMapLink = 'GPS acquisition failed';
+    let finalAddress = 'GPS acquisition failed';
+
+    if (gpsResult) {
+      finalLat = gpsResult.coords.latitude;
+      finalLng = gpsResult.coords.longitude;
+      finalMapLink = `https://maps.google.com/?q=${finalLat},${finalLng}`;
+      finalAddress = `Approximate Location near ${finalLat}, ${finalLng}`;
+    } else if (event.location) {
+      finalLat = event.location.latitude;
+      finalLng = event.location.longitude;
+      finalMapLink = `https://maps.google.com/?q=${finalLat},${finalLng}`;
+      finalAddress = `Last Known Location near ${finalLat}, ${finalLng}`;
     }
+
+    // 🔴 EXACT PAYLOAD FORMAT AS REQUESTED
+    const timeStr = new Date(event.timestamp).toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' });
+    
+    let msg = `🚨 *SAFESPHERE EMERGENCY ALERT* 🚨\n\n`;
+    msg += `*User Name:* Your Loved One\n`;
+    msg += `*Emergency Status:* CRITICAL - DANGER DETECTED\n\n`;
+    msg += `📍 *Current Address:* ${finalAddress}\n`;
+    msg += `🗺️ *Google Maps Link:* ${finalMapLink}\n`;
+    msg += `🔋 *Battery Percentage:* ${event.battery !== undefined ? event.battery + '%' : 'Unknown'}\n`;
+    msg += `📶 *Network Status:* ${event.network || 'Unknown'}\n`;
+    msg += `⏰ *Current Time:* ${timeStr}\n\n`;
+    msg += `🛡️ *EMERGENCY DASHBOARD URL:*\nhttps://safesphere.app/track/${eventId}\n\n`;
+    msg += `🎙️ *Audio Evidence URL:* ${evidenceResult.audioUrl || 'Not Available'}\n`;
+    msg += `📹 *Video Evidence URL:* ${evidenceResult.videoUrl || 'Not Available'}\n\n`;
+    msg += `Please monitor the dashboard or check the evidence URLs immediately.`;
+
+    const emergencyPayload = {
+      userName: "Your Loved One",
+      emergencyStatus: "CRITICAL - DANGER DETECTED",
+      currentAddress: finalAddress,
+      googleMapsLink: finalMapLink,
+      batteryPercentage: event.battery !== undefined ? event.battery.toString() : 'Unknown',
+      networkStatus: event.network || 'Unknown',
+      currentTime: timeStr,
+      emergencyDashboardUrl: `https://safesphere.app/track/${eventId}`,
+      audioEvidenceUrl: evidenceResult.audioUrl || 'Not Available',
+      videoEvidenceUrl: evidenceResult.videoUrl || 'Not Available',
+    };
+
+    if (phones.length > 0) {
+      sosLogger.info(LOG_SOURCE, 'Dispatching INITIAL Emergency Payload to guardians via Twilio APIs...');
+      
+      const payloadEvent = { ...event, payload: emergencyPayload, customMessage: msg } as any;
+
+      const results = await Promise.allSettled([
+        this.deps.notificationService.sendEmergencyAlert(guardians, payloadEvent),
+        this.deps.whatsAppService.sendWhatsAppAlert(phones, payloadEvent),
+        this.deps.smsService.sendOfflineSMS(phones, payloadEvent),
+        this.deps.emergencyCallingService.triggerAutomatedCall(phones, 'EMERGENCY ALERT. Complete evidence and location are available on the Emergency Dashboard.')
+      ]);
+      
+      sosLogger.info(LOG_SOURCE, '✅ Initial Emergency Payload Dispatched Successfully.', { results });
+    }
+
+    // 🔴 CONTINUOUS BACKGROUND EVIDENCE LOOP (Detached)
+    this.startContinuousEvidenceLoop(eventId);
+  }
+
+  private startContinuousEvidenceLoop(eventId: string) {
+    sosLogger.info(LOG_SOURCE, 'Starting Continuous Background Evidence Loop (No WhatsApp Duplicates)...');
+    
+    // Detached promise, continuously records and uploads chunks while emergency is active
+    (async () => {
+      let chunkIndex = 1;
+      while (this.currentEmergency && this.currentEmergency.status === EmergencyStatus.EMERGENCY) {
+        try {
+          sosLogger.info(LOG_SOURCE, `Recording background evidence chunk ${chunkIndex}...`);
+          
+          // Record 15-second chunks in the background
+          const evidencePromises = [this.deps.evidenceService.recordEvidence(15000)];
+          if (this.deps.evidenceService.recordVideoEvidence) {
+            evidencePromises.push(this.deps.evidenceService.recordVideoEvidence(15000));
+          } else {
+            evidencePromises.push(Promise.resolve(null));
+          }
+          
+          const [audioUri, videoUri] = await Promise.all(evidencePromises);
+
+          let audioUrl = '';
+          let videoUrl = '';
+          const uploadPromises = [];
+          if (audioUri) uploadPromises.push(this.deps.storageService.uploadEvidence(eventId, `audio_chunk_${chunkIndex}_${Date.now()}.m4a`, audioUri, 'audio').then(url => { audioUrl = url; }));
+          if (videoUri) uploadPromises.push(this.deps.storageService.uploadEvidence(eventId, `video_chunk_${chunkIndex}_${Date.now()}.mp4`, videoUri, 'video').then(url => { videoUrl = url; }));
+
+          await Promise.all(uploadPromises);
+          
+          // Update Dashboard only. Do NOT trigger Twilio/WhatsApp
+          if (this.currentEmergency && this.currentEmergency.status === EmergencyStatus.EMERGENCY) {
+             sosLogger.info(LOG_SOURCE, `Chunk ${chunkIndex} uploaded. Updating Dashboard...`);
+             await this.deps.emergencyRepo.updateEmergencySession(eventId, {
+                [`evidenceChunks.chunk${chunkIndex}`]: { audioUrl, videoUrl, timestamp: Date.now() },
+                // Also update the main pointers to the latest chunk for convenience
+                latestAudioUrl: audioUrl || null,
+                latestVideoUrl: videoUrl || null,
+             });
+          }
+          chunkIndex++;
+        } catch (error) {
+          sosLogger.warn(LOG_SOURCE, `Background evidence chunk ${chunkIndex} failed, retrying...`, { error });
+          await new Promise(res => setTimeout(res, 3000));
+        }
+      }
+      sosLogger.info(LOG_SOURCE, 'Continuous Background Evidence Loop Terminated.');
+    })();
   }
 
   private startLiveLocationTracking(guardians: any[], eventId: string) {
     if (this.trackingInterval) clearInterval(this.trackingInterval);
-    
+
     sosLogger.info(LOG_SOURCE, 'Starting Live Location Tracking...');
-    
+
     // Simulate updating location every 5 seconds
     this.trackingInterval = setInterval(async () => {
       // Step 3: Poll location and send
       const simulatedLat = 22.123 + (Math.random() * 0.01);
       const simulatedLng = 73.123 + (Math.random() * 0.01);
-      
+
       await this.deps.notificationService.sendLocationUpdate(guardians, eventId, simulatedLat, simulatedLng);
     }, 5000);
   }
@@ -205,10 +347,10 @@ export class EmergencyService {
       this.currentEmergency.status = EmergencyStatus.RESOLVED;
       sosLogger.info(LOG_SOURCE, 'Emergency resolved', { id: this.currentEmergency.id });
       this.deps.emergencyRepo.resolveEmergencySession(this.currentEmergency.id, 'User Marked Safe');
-      
+
       if (this.trackingInterval) {
-         clearInterval(this.trackingInterval);
-         this.trackingInterval = null;
+        clearInterval(this.trackingInterval);
+        this.trackingInterval = null;
       }
     }
   }
