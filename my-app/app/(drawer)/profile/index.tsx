@@ -14,6 +14,7 @@ import { useRouter } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { Feather } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { useUser, useAuth } from '@clerk/clerk-expo';
 import { authService } from '../../../src/services/authService';
 
 interface Contact {
@@ -25,6 +26,8 @@ interface Contact {
 
 export default function ProfileScreen() {
   const router = useRouter();
+  const { user } = useUser();
+  const { signOut } = useAuth();
 
   const [contacts, setContacts] = useState<Contact[]>([]);
   const [userProfile, setUserProfile] = useState<any>(null);
@@ -44,7 +47,8 @@ export default function ProfileScreen() {
   useEffect(() => {
     const loadData = async () => {
       try {
-        const profile = await authService.getUserProfile();
+        if (!user?.id) return;
+        const profile = await authService.getUserProfile(user.id);
         if (profile) {
           setUserProfile(profile);
           if (profile.trustedContacts) {
@@ -69,8 +73,8 @@ export default function ProfileScreen() {
 
   // Save contacts
   useEffect(() => {
-    if (userProfile) {
-      authService.updateUserProfile({ trustedContacts: contacts }).catch(e => console.log('Sync err', e));
+    if (userProfile && user?.id) {
+      authService.updateUserProfile(user.id, { trustedContacts: contacts }).catch(e => console.log('Sync err', e));
     }
   }, [contacts]);
 

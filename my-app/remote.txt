@@ -1,0 +1,840 @@
+commit 30494c455c4ec43a3316e155b6d185fedbea471d
+Author: SaptakBhattacharyya <saptakbhattacharyya16@gmail.com>
+Date:   Sat Jul 11 00:53:52 2026 +0530
+
+    fix: make avatar 2 letters and remove fake hardcoded contacts
+
+diff --git a/my-app/app/(drawer)/profile/index.tsx b/my-app/app/(drawer)/profile/index.tsx
+index 3b0560d..beedf6c 100644
+--- a/my-app/app/(drawer)/profile/index.tsx
++++ b/my-app/app/(drawer)/profile/index.tsx
+@@ -29,10 +29,7 @@ export default function ProfileScreen() {
+   const { user } = useUser();
+   
+   // Trusted contacts state
+-  const [contacts, setContacts] = useState<Contact[]>([
+-    { id: '1', name: 'Rajesh (Dad)', phone: '+91 98300 12345', isGuardian: true },
+-    { id: '2', name: 'Anjali', phone: '+91 98311 54321', isGuardian: true }
+-  ]);
++  const [contacts, setContacts] = useState<Contact[]>([]);
+   
+   // New contact form state
+   const [newName, setNewName] = useState('');
+@@ -116,7 +113,9 @@ export default function ProfileScreen() {
+         {/* User Card */}
+         <View style={styles.profileHeader}>
+           <View style={styles.profileAvatar}>
+-            <Text style={styles.avatarText}>{user?.firstName?.[0] || 'U'}</Text>
++            <Text style={styles.avatarText}>
++              {`${user?.firstName?.[0] || ''}${user?.lastName?.[0] || ''}`.toUpperCase() || 'U'}
++            </Text>
+           </View>
+           <Text style={styles.profileName}>
+             {user?.firstName} {user?.lastName}
+
+commit cb4dc93e090fd2093172d24f9527d87b9a4c8113
+Author: SaptakBhattacharyya <saptakbhattacharyya16@gmail.com>
+Date:   Sat Jul 11 00:47:19 2026 +0530
+
+    fix: make profile screen data dynamic using clerk user
+
+diff --git a/my-app/.env b/my-app/.env
+index 7cdb047..ec2faf9 100644
+--- a/my-app/.env
++++ b/my-app/.env
+@@ -1 +1 @@
+-???EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY=pk_test_dG9sZXJhbnQtdXJjaGluLTEwLmNsZXJrLmFjY291bnRzLmRldiQ
++EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY=pk_test_bGl2aW5nLW5ld3QtODMuY2xlcmsuYWNjb3VudHMuZGV2JA
+diff --git a/my-app/app/(drawer)/profile/index.tsx b/my-app/app/(drawer)/profile/index.tsx
+index 5c136df..3b0560d 100644
+--- a/my-app/app/(drawer)/profile/index.tsx
++++ b/my-app/app/(drawer)/profile/index.tsx
+@@ -14,7 +14,7 @@ import { useRouter } from 'expo-router';
+ import { StatusBar } from 'expo-status-bar';
+ import { Feather } from '@expo/vector-icons';
+ import AsyncStorage from '@react-native-async-storage/async-storage';
+-import { useAuth } from '@clerk/clerk-expo';
++import { useAuth, useUser } from '@clerk/clerk-expo';
+ 
+ interface Contact {
+   id: string;
+@@ -26,6 +26,7 @@ interface Contact {
+ export default function ProfileScreen() {
+   const router = useRouter();
+   const { signOut } = useAuth();
++  const { user } = useUser();
+   
+   // Trusted contacts state
+   const [contacts, setContacts] = useState<Contact[]>([
+@@ -115,10 +116,14 @@ export default function ProfileScreen() {
+         {/* User Card */}
+         <View style={styles.profileHeader}>
+           <View style={styles.profileAvatar}>
+-            <Text style={styles.avatarText}>A</Text>
++            <Text style={styles.avatarText}>{user?.firstName?.[0] || 'U'}</Text>
+           </View>
+-          <Text style={styles.profileName}>Ananya Bhattacharya</Text>
+-          <Text style={styles.profileDetails}>+91 98765 43210  ???  ananya@email.com</Text>
++          <Text style={styles.profileName}>
++            {user?.firstName} {user?.lastName}
++          </Text>
++          <Text style={styles.profileDetails}>
++            {user?.primaryEmailAddress?.emailAddress || 'No email provided'}
++          </Text>
+         </View>
+ 
+         {/* Trusted Contacts Manager */}
+
+commit 04111c0994df29e6f1b1de5f17936212344f52d2
+Author: SaptakBhattacharyya <saptakbhattacharyya16@gmail.com>
+Date:   Sat Jul 11 00:41:14 2026 +0530
+
+    fix: completely migrate signup flow to clerk and decouple firestore from firebase auth session
+
+diff --git a/my-app/app/(auth)/gathering-info.tsx b/my-app/app/(auth)/gathering-info.tsx
+index 25a3d48..acd9a1b 100644
+--- a/my-app/app/(auth)/gathering-info.tsx
++++ b/my-app/app/(auth)/gathering-info.tsx
+@@ -16,16 +16,16 @@ import { StatusBar } from 'expo-status-bar';
+ import { useRouter, useLocalSearchParams } from 'expo-router';
+ import { Feather, FontAwesome5 } from '@expo/vector-icons';
+ import { authService } from '../../src/services/authService';
+-import { GOOGLE_CLIENT_IDS } from '../../src/config/firebaseConfig';
++import { useSignUp, useOAuth } from '@clerk/clerk-expo';
+ import * as WebBrowser from 'expo-web-browser';
+-import * as Google from 'expo-auth-session/providers/google';
+-import * as AuthSession from 'expo-auth-session';
+ 
+ WebBrowser.maybeCompleteAuthSession();
+ 
+ export default function GatheringInfoScreen() {
+   const router = useRouter();
+   const params = useLocalSearchParams();
++  const { signUp, setActive, isLoaded } = useSignUp();
++  const { startOAuthFlow } = useOAuth({ strategy: 'oauth_google' });
+   
+   const [fullName, setFullName] = useState((params.fullName as string) || '');
+   const [email, setEmail] = useState((params.email as string) || '');
+@@ -64,36 +64,48 @@ export default function GatheringInfoScreen() {
+       return;
+     }
+ 
++    if (!isLoaded) return;
++    
+     setLoading(true);
+     try {
+-      await authService.signUp(email, finalPassword, fullName);
+-      router.push('/(auth)/safety-info');
++      // 1. Create Clerk user
++      const result = await signUp.create({
++        emailAddress: email,
++        password: finalPassword,
++        firstName: fullName.split(' ')[0],
++        lastName: fullName.split(' ').slice(1).join(' ')
++      });
++
++      if (result.status === 'complete' || result.status === 'missing_requirements') {
++        // 2. Set active session in Clerk
++        if (result.createdSessionId) {
++          await setActive({ session: result.createdSessionId });
++        }
++        // 3. Create initial profile in Firestore using Clerk's user ID
++        if (result.createdUserId) {
++          await authService.createUserProfile(result.createdUserId, email, fullName);
++        }
++        router.push('/(auth)/safety-info');
++      } else {
++        Alert.alert("Sign up Error", "Unable to complete sign up at this time.");
++      }
+     } catch (error: any) {
+-      Alert.alert("Sign up Error", error.message);
++      Alert.alert("Sign up Error", error.errors?.[0]?.message || error.message);
+     } finally {
+       setLoading(false);
+     }
+   };
+ 
+-  const [request, response, promptAsync] = Google.useAuthRequest({
+-    clientId: GOOGLE_CLIENT_IDS.webClientId,
+-    responseType: 'id_token',
+-    redirectUri: AuthSession.makeRedirectUri(),
+-  });
+-
+-  React.useEffect(() => {
+-    if (response?.type === 'success') {
+-      const { id_token } = response.params;
+-      authService.loginWithGoogleCredential(id_token).then(() => {
+-        router.replace('/(drawer)/(tabs)/home');
+-      }).catch(error => {
+-        Alert.alert('Google Sign-In Error', error.message);
+-      });
+-    }
+-  }, [response]);
+-
+   const handleGoogleSignIn = async () => {
+-    promptAsync();
++    try {
++      const { createdSessionId, setActive: setActiveSession } = await startOAuthFlow();
++      if (createdSessionId) {
++        await setActiveSession!({ session: createdSessionId });
++        // InitialLayout ka useEffect redirect karega
++      }
++    } catch (error: any) {
++      Alert.alert('Google Sign-In Error', error.errors?.[0]?.message || error.message);
++    }
+   };
+ 
+   return (
+diff --git a/my-app/app/(auth)/safety-info.tsx b/my-app/app/(auth)/safety-info.tsx
+index b8de77f..b79ac00 100644
+--- a/my-app/app/(auth)/safety-info.tsx
++++ b/my-app/app/(auth)/safety-info.tsx
+@@ -14,10 +14,12 @@ import { StatusBar } from 'expo-status-bar';
+ import { useRouter } from 'expo-router';
+ import { Feather, FontAwesome5, MaterialCommunityIcons } from '@expo/vector-icons';
+ import { authService } from '../../src/services/authService';
++import { useUser } from '@clerk/clerk-expo';
+ import * as Location from 'expo-location';
+ 
+ export default function SafetyInfoScreen() {
+   const router = useRouter();
++  const { user } = useUser();
+   const [loading, setLoading] = useState(false);
+   const [age, setAge] = useState('');
+   const [gender, setGender] = useState('');
+@@ -42,9 +44,14 @@ export default function SafetyInfoScreen() {
+       return;
+     }
+     
++    if (!user) {
++      Alert.alert("Error", "You must be logged in to update your profile.");
++      return;
++    }
++    
+     setLoading(true);
+     try {
+-      await authService.updateUserProfile({
++      await authService.updateUserProfile(user.id, {
+         age,
+         gender,
+         safetyPreferences: {
+diff --git a/my-app/app/(drawer)/(tabs)/home/index.tsx b/my-app/app/(drawer)/(tabs)/home/index.tsx
+index 94646a5..35c1f64 100644
+--- a/my-app/app/(drawer)/(tabs)/home/index.tsx
++++ b/my-app/app/(drawer)/(tabs)/home/index.tsx
+@@ -45,6 +45,7 @@ import {
+   Menu,
+   AlertOctagon,
+ } from 'lucide-react-native';
++import { useUser } from '@clerk/clerk-expo';
+ import { FirebaseGuardianRepository } from '@/features/guardian/repositories/FirebaseGuardianRepository';
+ 
+ 
+@@ -257,6 +258,7 @@ const SOSButton = ({ isActive, onActivate }: any) => {
+ export default function HomeScreen() {
+   const router = useRouter();
+   const navigation = useNavigation();
++  const { user } = useUser();
+   const { width } = useWindowDimensions();
+   const insets = useSafeAreaInsets();
+ 
+@@ -475,10 +477,9 @@ export default function HomeScreen() {
+           </Pressable>
+           <Pressable style={styles.quickDialItem} onPress={async () => {
+             Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+-            const user = auth.currentUser;
+             if (user) {
+               const repo = new FirebaseGuardianRepository();
+-              const guardians = await repo.getRegisteredGuardians(user.uid);
++              const guardians = await repo.getRegisteredGuardians(user.id);
+               if (guardians.length > 0 && guardians[0].phone) {
+                 Linking.openURL(`tel:${guardians[0].phone}`);
+               } else {
+diff --git a/my-app/src/services/authService.ts b/my-app/src/services/authService.ts
+index 79a8044..1d2e8a1 100644
+--- a/my-app/src/services/authService.ts
++++ b/my-app/src/services/authService.ts
+@@ -10,26 +10,11 @@ import { doc, setDoc, getDoc } from "firebase/firestore";
+ import { auth, db } from "../config/firebaseConfig";
+ 
+ export const authService = {
+-  // Sign up with email and password, then create user profile in Firestore
+-  async signUp(email: string, password: string, fullName: string) {
+-    let user;
++  // Create initial user profile in Firestore after Clerk signup
++  async createUserProfile(userId: string, email: string, fullName: string) {
+     try {
+-      const userCredential = await createUserWithEmailAndPassword(auth, email, password);
+-      user = userCredential.user;
+-    } catch (error: any) {
+-      if (error.code === 'auth/email-already-in-use') {
+-        // Fallback: log the user in if the account was already created but they got stuck
+-        const userCredential = await signInWithEmailAndPassword(auth, email, password);
+-        user = userCredential.user;
+-      } else {
+-        throw error;
+-      }
+-    }
+-    
+-    try {
+-      // Create user document in Firestore
+-      await setDoc(doc(db, "users", user.uid), {
+-        uid: user.uid,
++      await setDoc(doc(db, "users", userId), {
++        uid: userId,
+         fullName,
+         email,
+         phone: "",
+@@ -44,22 +29,21 @@ export const authService = {
+         trustedContacts: [],
+         createdAt: new Date().toISOString(),
+         updatedAt: new Date().toISOString(),
+-      }, { merge: true }); // merge: true prevents overwriting if they are just logging back in
+-      
+-      return user;
++      }, { merge: true });
++      return true;
+     } catch (error: any) {
+       console.error("Firestore Error:", error);
+-      throw new Error(`Database Error: ${error.message}. Please check your Firestore Security Rules in the Firebase Console.`);
++      throw new Error(`Database Error: ${error.message}`);
+     }
+   },
+ 
++
+   // Update User Profile (Safety Info, Contacts, etc.)
+-  async updateUserProfile(data: any) {
++  async updateUserProfile(userId: string, data: any) {
+     try {
+-      const user = auth.currentUser;
+-      if (!user) throw new Error("No user logged in");
++      if (!userId) throw new Error("No user ID provided");
+       
+-      const userRef = doc(db, "users", user.uid);
++      const userRef = doc(db, "users", userId);
+       await setDoc(userRef, {
+         ...data,
+         updatedAt: new Date().toISOString(),
+@@ -70,12 +54,11 @@ export const authService = {
+   },
+ 
+   // Get User Profile (including trusted contacts)
+-  async getUserProfile() {
++  async getUserProfile(userId: string) {
+     try {
+-      const user = auth.currentUser;
+-      if (!user) return null;
++      if (!userId) return null;
+       
+-      const userDoc = await getDoc(doc(db, "users", user.uid));
++      const userDoc = await getDoc(doc(db, "users", userId));
+       return userDoc.exists() ? userDoc.data() : null;
+     } catch (error) {
+       console.error("Error fetching user profile:", error);
+
+commit db528c65a00a56292b8c80d34d4d61454976ffe0
+Author: SaptakBhattacharyya <saptakbhattacharyya16@gmail.com>
+Date:   Sat Jul 11 00:37:38 2026 +0530
+
+    fix: remove firebase auth from index.tsx and restore layout routing logic
+
+diff --git a/my-app/app/_layout.tsx b/my-app/app/_layout.tsx
+index e5d16dd..be6aa09 100644
+--- a/my-app/app/_layout.tsx
++++ b/my-app/app/_layout.tsx
+@@ -1,50 +1,49 @@
++import { ClerkProvider, useAuth } from "@clerk/clerk-expo";
++import { tokenCache } from "@/src/clerk";
++
+ import { DarkTheme, DefaultTheme, ThemeProvider } from "@react-navigation/native";
+ import { Stack, useRouter, useSegments } from "expo-router";
+ import { StatusBar } from "expo-status-bar";
+ import { SafeAreaProvider } from "react-native-safe-area-context";
+ import "react-native-reanimated";
+-import { useEffect, useState } from "react";
+-import { User, onAuthStateChanged } from "firebase/auth";
+-import { auth } from "@/src/config/firebaseConfig";
++import { useEffect } from "react";
+ 
+ import { useColorScheme } from "@/hooks/use-color-scheme";
+ 
+-// Auth guard: Firebase auth state ke hisaab se redirect karta hai
++const publishableKey = process.env.EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY!;
++
++// Auth guard: sirf drawer ko protect karta hai
++// Index/landing screen par auto-redirect NAHI hoga
+ function InitialLayout() {
+-  const [user, setUser] = useState<User | null | undefined>(undefined);
++  const { isLoaded, isSignedIn } = useAuth();
+   const segments = useSegments();
+   const router = useRouter();
+ 
+   useEffect(() => {
+-    const unsubscribe = onAuthStateChanged(auth, (firebaseUser) => {
+-      setUser(firebaseUser);
+-    });
+-    return unsubscribe;
+-  }, []);
+-
+-  useEffect(() => {
+-    if (user === undefined) return; // Still loading
++    if (!isLoaded) return;
+ 
+-    const inAuthGroup = segments[0] === "(auth)";
+     const inDrawerGroup = segments[0] === "(drawer)";
++    const inAuthGroup = segments[0] === "(auth)";
++    const isIndex = segments.length === 0 || (segments.length === 1 && segments[0] === "index");
+ 
+-    if (user && inAuthGroup) {
+-      // User signed in hai lekin auth pages par hai ??? home bhejo
++    if (isSignedIn && (inAuthGroup || isIndex)) {
++      // User signed in hai aur auth/landing pages par hai ??? home bhejo
+       router.replace("/(drawer)/(tabs)/home");
+-    } else if (!user && inDrawerGroup) {
+-      // User signed out hai lekin protected pages par hai ??? sign-in bhejo
++    } else if (!isSignedIn && inDrawerGroup) {
++      // User signed out hai aur protected drawer pages par hai ??? sign-in bhejo
+       router.replace("/(auth)/sign-in");
+     }
+-  }, [user, segments]);
++  }, [isLoaded, isSignedIn, segments]);
+ 
+-  if (user === undefined) {
+-    // Auth state load ho raha hai ??? blank screen dikhao (no flash)
++  if (!isLoaded) {
++    // Clerk load ho raha hai ??? blank screen (no flash)
+     return null;
+   }
+ 
+   return (
+     <Stack>
+       <Stack.Screen name="index" options={{ headerShown: false }} />
++      <Stack.Screen name="features" options={{ headerShown: false }} />
+       <Stack.Screen name="(auth)" options={{ headerShown: false }} />
+       <Stack.Screen name="(drawer)" options={{ headerShown: false }} />
+       <Stack.Screen name="oauth-native-callback" options={{ headerShown: false }} />
+@@ -64,11 +63,16 @@ export default function RootLayout() {
+   const colorScheme = useColorScheme();
+ 
+   return (
+-    <SafeAreaProvider>
+-      <ThemeProvider value={colorScheme === "dark" ? DarkTheme : DefaultTheme}>
+-        <InitialLayout />
+-        <StatusBar style="auto" />
+-      </ThemeProvider>
+-    </SafeAreaProvider>
++    <ClerkProvider
++      publishableKey={publishableKey}
++      tokenCache={tokenCache}
++    >
++      <SafeAreaProvider>
++        <ThemeProvider value={colorScheme === "dark" ? DarkTheme : DefaultTheme}>
++          <InitialLayout />
++          <StatusBar style="auto" />
++        </ThemeProvider>
++      </SafeAreaProvider>
++    </ClerkProvider>
+   );
+ }
+diff --git a/my-app/app/index.tsx b/my-app/app/index.tsx
+index 887c2cb..6b519b3 100644
+--- a/my-app/app/index.tsx
++++ b/my-app/app/index.tsx
+@@ -1,6 +1,4 @@
+-import React, { useEffect, useState } from 'react';
+-import { onAuthStateChanged } from "firebase/auth";
+-import { auth } from "@/src/config/firebaseConfig";
++import React from 'react';
+ import {
+   StyleSheet,
+   View,
+@@ -18,15 +16,8 @@ const { width } = Dimensions.get('window');
+ 
+ export default function OnboardingScreen() {
+   const router = useRouter();
+-  const [isSignedIn, setIsSignedIn] = useState(false);
+ 
+-  useEffect(() => {
+-    const unsubscribe = onAuthStateChanged(auth, (user) => {
+-      setIsSignedIn(!!user);
+-      if (user) router.replace("/(drawer)/(tabs)/home");
+-    });
+-    return unsubscribe;
+-  }, []);
++  // _layout.tsx will handle all auth routing
+ 
+   return (
+     <SafeAreaView style={styles.container} edges={['top', 'bottom']}>
+
+commit eb28c95b3d62f79f1067b70dc15cc8b9acd6f050
+Author: SaptakBhattacharyya <saptakbhattacharyya16@gmail.com>
+Date:   Sat Jul 11 00:30:23 2026 +0530
+
+    fix: replace useClerk with useAuth in profile screen
+
+diff --git a/my-app/app/(drawer)/profile/index.tsx b/my-app/app/(drawer)/profile/index.tsx
+index d0b89e4..5c136df 100644
+--- a/my-app/app/(drawer)/profile/index.tsx
++++ b/my-app/app/(drawer)/profile/index.tsx
+@@ -14,7 +14,7 @@ import { useRouter } from 'expo-router';
+ import { StatusBar } from 'expo-status-bar';
+ import { Feather } from '@expo/vector-icons';
+ import AsyncStorage from '@react-native-async-storage/async-storage';
+-import { useClerk } from '@clerk/clerk-expo';
++import { useAuth } from '@clerk/clerk-expo';
+ 
+ interface Contact {
+   id: string;
+@@ -25,7 +25,7 @@ interface Contact {
+ 
+ export default function ProfileScreen() {
+   const router = useRouter();
+-  const { signOut } = useClerk();
++  const { signOut } = useAuth();
+   
+   // Trusted contacts state
+   const [contacts, setContacts] = useState<Contact[]>([
+
+commit f1868020006b1470a8ab99a8db4917c90abf7c9c
+Author: Anshu Shee <anshu.shee.cg@gmail.com>
+Date:   Sat Jul 11 00:54:05 2026 +0530
+
+    feat(nav): add floating capsule tab bar with SOS center button and safe-area inset protection
+
+diff --git a/my-app/app/(drawer)/(tabs)/_layout.tsx b/my-app/app/(drawer)/(tabs)/_layout.tsx
+index d3bdddf..323a93c 100644
+--- a/my-app/app/(drawer)/(tabs)/_layout.tsx
++++ b/my-app/app/(drawer)/(tabs)/_layout.tsx
+@@ -1,168 +1,178 @@
+-import { Tabs, useRouter } from 'expo-router';
++import { Tabs } from 'expo-router';
+ import React from 'react';
+-import { StyleSheet, View, Text, TouchableOpacity, Platform, DeviceEventEmitter } from 'react-native';
+-import { Feather, MaterialCommunityIcons } from '@expo/vector-icons';
+-import { useVoiceDetection } from '../../../features/voice-sos/hooks/useVoiceDetection';
++import {
++    View,
++    Text,
++    TouchableOpacity,
++    StyleSheet,
++    Platform,
++} from 'react-native';
++import { useSafeAreaInsets } from 'react-native-safe-area-context';
++import { Home, Navigation, AlertCircle } from 'lucide-react-native';
++import type { BottomTabBarProps } from '@react-navigation/bottom-tabs';
+ 
+-export default function TabLayout() {
+-  const router = useRouter();
++// ????????? Custom Tab Bar ?????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????
++function CustomTabBar({ state, descriptors, navigation }: BottomTabBarProps) {
++    const insets = useSafeAreaInsets();
+ 
+-  // Globally initialize Voice/Sound SOS detection
+-  const { isEmergency, resolveEmergency, stop } = useVoiceDetection({ autoStart: true });
++    // bottom padding = system gesture bar height + 12px breathing room
++    const bottomPad = insets.bottom + 12;
+ 
+-  React.useEffect(() => {
+-    if (isEmergency) {
+-      router.push('/sos/active');
+-    }
+-  }, [isEmergency]);
++    return (
++        <View style={[styles.tabBarWrapper, { bottom: bottomPad }]}>
++            <View style={styles.capsule}>
++                {state.routes.map((route, index) => {
++                    const { options } = descriptors[route.key];
++                    const isFocused = state.index === index;
++                    const isSOS = route.name === 'sos-placeholder';
+ 
+-  React.useEffect(() => {
+-    const sub = DeviceEventEmitter.addListener('stop_sos', () => {
+-      if (resolveEmergency) resolveEmergency();
+-      if (stop) stop();
+-    });
+-    return () => sub.remove();
+-  }, [resolveEmergency, stop]);
++                    const onPress = () => {
++                        const event = navigation.emit({
++                            type: 'tabPress',
++                            target: route.key,
++                            canPreventDefault: true,
++                        });
++                        if (!isFocused && !event.defaultPrevented) {
++                            navigation.navigate(route.name);
++                        }
++                    };
+ 
+-  return (
+-    <Tabs
+-      screenOptions={{
+-        tabBarActiveTintColor: '#A78BFA', // bright violet-400 for dark mode tab bar contrast
+-        tabBarInactiveTintColor: '#9CA3AF',
+-        tabBarStyle: styles.tabBar,
+-        headerShown: false,
+-        tabBarShowLabel: true,
+-        tabBarLabelStyle: styles.tabBarLabel,
+-      }}
+-    >
+-      <Tabs.Screen
+-        name="home/index"
+-        options={{
+-          title: 'Home',
+-          tabBarIcon: ({ color, focused }) => (
+-            <Feather name="home" size={22} color={color} style={focused && styles.activeIconGlow} />
+-          ),
+-        }}
+-      />
++                    // ?????? SOS centre button ??????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????
++                    if (isSOS) {
++                        return (
++                            <TouchableOpacity
++                                key={route.key}
++                                onPress={onPress}
++                                style={styles.sosWrapper}
++                                activeOpacity={0.85}
++                            >
++                                <View style={styles.sosButton}>
++                                    <AlertCircle size={26} color="#FFFFFF" strokeWidth={2.5} />
++                                </View>
++                                <Text style={styles.sosLabel}>SOS</Text>
++                            </TouchableOpacity>
++                        );
++                    }
+ 
+-      {/* Custom Elevated Center SOS Button */}
+-      <Tabs.Screen
+-        name="sos-placeholder"
+-        options={{
+-          title: 'SOS',
+-          tabBarLabelStyle: [styles.tabBarLabel, { color: '#DC2626', fontWeight: '800' }],
+-          tabBarButton: (props) => {
+-            const { style, delayLongPress, ...restProps } = props as any;
+-            return (
+-              <TouchableOpacity
+-                {...restProps}
+-                style={[style, styles.sosButtonContainer]}
+-                activeOpacity={0.8}
+-                onPress={() => router.push('/sos/active')}
+-              >
+-                <View style={styles.sosInnerButton}>
+-                  <MaterialCommunityIcons name="alert-decagram" size={26} color="#FFFFFF" />
+-                </View>
+-                <Text style={styles.sosLabel}>SOS</Text>
+-              </TouchableOpacity>
+-            );
+-          },
+-        }}
+-      />
++                    // ?????? Regular tab ?????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????
++                    const label =
++                        route.name === 'home'
++                            ? 'Home'
++                            : route.name === 'navigate'
++                                ? 'Navigate'
++                                : route.name;
+ 
++                    const Icon =
++                        route.name === 'home'
++                            ? Home
++                            : Navigation;
+ 
+-      <Tabs.Screen
+-        name="navigate/index"
+-        options={{
+-          title: 'Navigate',
+-          tabBarIcon: ({ color, focused }) => (
+-            <Feather name="navigation" size={22} color={color} style={focused && styles.activeIconGlow} />
+-          ),
+-        }}
+-      />
+-
+-      {/* Hidden tab button but keeps the bottom navbar visible when on this screen */}
+-      <Tabs.Screen
+-        name="safety-analysis"
+-        options={{
+-          href: null,
+-          tabBarStyle: { display: 'none' }, // optional but helps
+-        }}
+-      />
+-      <Tabs.Screen
+-        name="live-tracking"
+-        options={{
+-          href: null,
+-        }}
+-      />
++                    return (
++                        <TouchableOpacity
++                            key={route.key}
++                            onPress={onPress}
++                            style={styles.tab}
++                            activeOpacity={0.75}
++                        >
++                            <Icon
++                                size={22}
++                                color={isFocused ? '#A78BFA' : '#6B7280'}
++                                strokeWidth={isFocused ? 2.5 : 1.8}
++                            />
++                            <Text style={[styles.label, isFocused && styles.labelActive]}>
++                                {label}
++                            </Text>
++                        </TouchableOpacity>
++                    );
++                })}
++            </View>
++        </View>
++    );
++}
+ 
+-      {/* Hide ghost tabs that linger if the Metro cache hasn't been reset yet */}
+-      <Tabs.Screen name="ai-assistant" options={{ href: null }} />
+-      <Tabs.Screen name="community" options={{ href: null }} />
+-      <Tabs.Screen name="profile" options={{ href: null }} />
+-      <Tabs.Screen name="ai-assistant/index" options={{ href: null }} />
+-      <Tabs.Screen name="community/index" options={{ href: null }} />
+-      <Tabs.Screen name="profile/index" options={{ href: null }} />
+-    </Tabs>
+-  );
++// ????????? Layout ?????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????
++export default function TabsLayout() {
++    return (
++        <Tabs
++            tabBar={(props) => <CustomTabBar {...props} />}
++            screenOptions={{ headerShown: false }}
++        >
++            <Tabs.Screen name="home" />
++            <Tabs.Screen name="sos-placeholder" />
++            <Tabs.Screen name="navigate" />
++            {/* Hidden from tab bar */}
++            <Tabs.Screen name="live-tracking" options={{ href: null }} />
++            <Tabs.Screen name="safety-analysis" options={{ href: null }} />
++        </Tabs>
++    );
+ }
+ 
++// ????????? Styles ?????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????
+ const styles = StyleSheet.create({
+-  tabBar: {
+-    height: 64,
+-    position: 'absolute',
+-    bottom: Platform.OS === 'ios' ? 24 : 16,
+-    left: 16,
+-    right: 16,
+-    borderRadius: 32,
+-    borderWidth: 1,
+-    borderColor: '#1E293B',
+-    backgroundColor: '#0A0D1A', // premium dark navy/black
+-    paddingBottom: 4,
+-    paddingTop: 4,
+-    shadowColor: '#000000',
+-    shadowOffset: { width: 0, height: 4 },
+-    shadowOpacity: 0.15,
+-    shadowRadius: 12,
+-    elevation: 8,
+-  },
+-  tabBarLabel: {
+-    fontSize: 11,
+-    fontWeight: '600',
+-    marginTop: 2,
+-  },
+-  activeIconGlow: {
+-    // Subtle design glow for active icon
+-    shadowColor: '#A78BFA',
+-    shadowOffset: { width: 0, height: 2 },
+-    shadowOpacity: 0.25,
+-    shadowRadius: 4,
+-  },
+-  sosButtonContainer: {
+-    height: '100%',
+-    alignItems: 'center',
+-    justifyContent: 'center',
+-  },
+-  sosInnerButton: {
+-    position: 'absolute',
+-    top: -20,
+-    width: 50,
+-    height: 50,
+-    borderRadius: 25,
+-    backgroundColor: '#DC2626', // safety.danger (red)
+-    justifyContent: 'center',
+-    alignItems: 'center',
+-    shadowColor: '#DC2626',
+-    shadowOffset: { width: 0, height: 4 },
+-    shadowOpacity: 0.3,
+-    shadowRadius: 8,
+-    elevation: 6,
+-  },
+-  sosLabel: {
+-    position: 'absolute',
+-    bottom: 6,
+-    fontSize: 11,
+-    fontWeight: '800',
+-    color: '#DC2626',
+-  },
++    tabBarWrapper: {
++        position: 'absolute',
++        left: 20,
++        right: 20,
++        alignItems: 'center',
++        // lift above system nav bar ??? bottom is set dynamically via insets
++    },
++    capsule: {
++        flexDirection: 'row',
++        alignItems: 'center',
++        backgroundColor: '#0A0D1A',
++        borderRadius: 40,
++        paddingHorizontal: 16,
++        paddingVertical: 10,
++        width: '100%',
++        shadowColor: '#000',
++        shadowOffset: { width: 0, height: 6 },
++        shadowOpacity: 0.35,
++        shadowRadius: 14,
++        elevation: 16,
++    },
++    tab: {
++        flex: 1,
++        alignItems: 'center',
++        justifyContent: 'center',
++        gap: 3,
++    },
++    label: {
++        fontSize: 11,
++        fontWeight: '500',
++        color: '#6B7280',
++        marginTop: 2,
++    },
++    labelActive: {
++        color: '#A78BFA',
++        fontWeight: '700',
++    },
++    // SOS floating centre button
++    sosWrapper: {
++        flex: 1,
++        alignItems: 'center',
++        justifyContent: 'center',
++        marginTop: -28,       // lifts above the capsule
++    },
++    sosButton: {
++        width: 58,
++        height: 58,
++        borderRadius: 29,
++        backgroundColor: '#E53E3E',
++        alignItems: 'center',
++        justifyContent: 'center',
++        borderWidth: 3,
++        borderColor: '#0A0D1A',
++        shadowColor: '#E53E3E',
++        shadowOffset: { width: 0, height: 4 },
++        shadowOpacity: 0.6,
++        shadowRadius: 10,
++        elevation: 14,
++    },
++    sosLabel: {
++        fontSize: 10,
++        fontWeight: '700',
++        color: '#E53E3E',
++        marginTop: 3,
++        letterSpacing: 0.5,
++    },
+ });

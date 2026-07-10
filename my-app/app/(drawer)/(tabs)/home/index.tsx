@@ -293,7 +293,8 @@ export default function HomeScreen() {
     React.useCallback(() => {
       const loadContacts = async () => {
         try {
-          const profile = await authService.getUserProfile();
+          if (!user?.id) return;
+          const profile = await authService.getUserProfile(user.id);
           if (profile) {
             setUserProfile(profile);
             if (profile.trustedContacts) {
@@ -401,7 +402,7 @@ export default function HomeScreen() {
                 <Sun size={14} color={COLORS.orange} style={{ marginRight: 6 }} />
                 <Text style={styles.greetingSmall}>Good Afternoon,</Text>
               </View>
-              <Text style={styles.greetingName}>{userProfile?.fullName ? userProfile.fullName.split(' ')[0] : 'Stay Safe'}</Text>
+              <Text style={styles.greetingName}>{user?.firstName || 'Stay Safe'}</Text>
               <Text style={styles.greetingSub}>Your safety is our priority.</Text>
             </View>
           </View>
@@ -421,7 +422,7 @@ export default function HomeScreen() {
               onPress={() => router.push('/(drawer)/profile')}
             >
               <Image
-                source={{ uri: `https://ui-avatars.com/api/?name=${encodeURIComponent(userProfile?.fullName || 'User')}&background=6D35E8&color=fff` }}
+                source={{ uri: `https://ui-avatars.com/api/?name=${encodeURIComponent(user?.firstName ? (user.lastName ? `${user.firstName} ${user.lastName}` : user.firstName) : 'User')}&background=6D35E8&color=fff` }}
                 style={{ width: 28, height: 28, borderRadius: 14 }}
               />
             </NeumorphicButton>
