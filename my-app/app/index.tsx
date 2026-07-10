@@ -21,7 +21,7 @@ export default function OnboardingScreen() {
   return (
     <SafeAreaView style={styles.container} edges={['top', 'bottom']}>
       <StatusBar style="dark" />
-      
+
       {/* Top Header Row */}
       <View style={styles.topRow}>
         <TouchableOpacity style={styles.skipButton} onPress={() => router.push('/(auth)/sign-in')}>
@@ -105,7 +105,7 @@ export default function OnboardingScreen() {
           </View>
 
           {/* Action Button - Navigates to Features page */}
-          <TouchableOpacity 
+          <TouchableOpacity
             style={styles.getStartedButton}
             activeOpacity={0.9}
             onPress={() => router.push('/features')}
@@ -200,10 +200,12 @@ const styles = StyleSheet.create({
   },
   card: {
     width: '48%',
+    flexDirection: 'row',
+    alignItems: 'center',
     backgroundColor: '#FFFFFF',
     borderRadius: 16,
-    padding: 12, // Reduced padding
-    marginBottom: 12, // Reduced margin
+    padding: 10,
+    marginBottom: 12,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.05,
@@ -213,25 +215,26 @@ const styles = StyleSheet.create({
     borderColor: '#F3F4F6',
   },
   iconWrapper: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
+    width: 36,
+    height: 36,
+    borderRadius: 18,
     alignItems: 'center',
     justifyContent: 'center',
-    marginBottom: 8,
   },
   cardContent: {
     flex: 1,
+    marginLeft: 8,
   },
   cardTitle: {
-    fontSize: 13, // Slightly smaller
+    fontSize: 12,
     fontWeight: '800',
-    marginBottom: 2,
+    lineHeight: 14,
   },
   cardDescription: {
-    fontSize: 11, // Slightly smaller
+    fontSize: 10,
     color: '#6B7280',
-    lineHeight: 14,
+    lineHeight: 12,
+    marginTop: 1,
   },
   getStartedButton: {
     backgroundColor: '#F34E62',
