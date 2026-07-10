@@ -34,6 +34,7 @@ import { FirebaseGuardianRepository } from '../../guardian/repositories/Firebase
 import { FirebaseStorageService } from '../../emergency/repositories/FirebaseStorageService';
 import { AudioEvidenceService } from '../services/evidence.service';
 import { MockNotificationService } from '../../guardian/services/MockNotificationService';
+import { TwilioService } from '../../adapters/providers/TwilioService';
 import { Linking } from 'react-native';
 
 const LOG_SOURCE = 'useVoiceDetection';
@@ -94,71 +95,8 @@ export function useVoiceDetection(options: UseVoiceDetectionOptions = {}) {
       evidenceService: new AudioEvidenceService(),
       guardianRepo: new FirebaseGuardianRepository(),
       notificationService: new MockNotificationService(),
-      whatsAppService: { 
-        sendWhatsAppAlert: async (phones: string[], event: EmergencyEvent) => {
-          if (!phones || phones.length === 0) return;
-          
-          const profile = await authService.getUserProfile();
-          const userName = profile?.name ? profile.name.toUpperCase() : 'YOUR LOVED ONE';
-          const timeStr = new Date().toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' });
-          const locStr = event.location ? `${event.location.latitude},${event.location.longitude}` : 'Unknown';
-          const mapLink = event.location ? `https://maps.google.com/?q=${locStr}` : 'Location unavailable';
-          
-          let msg = `🚨 EMERGENCY ALERT FROM ${userName} 🚨\n\nI need help immediately! My live location and safety details are being shared with you.\n\n📍 *Location*: ${mapLink}\n⏰ *Time*: ${timeStr}\n🔋 *Battery*: ${event.battery !== undefined ? event.battery + '%' : 'Unknown'}\n📶 *Network*: ${event.network || 'Unknown'}\n⚠️ *Triggered By*: SafeSphere AI Detection\n\nPlease contact me or the authorities immediately!`;
-          
-          // Use custom message if provided (e.g. for evidence followup)
-          if ((event as any).customMessage) {
-            msg = (event as any).customMessage;
-          }
-          
-          // Open WhatsApp with the first contact
-          const phone = phones[0].replace(/[^0-9]/g, '');
-          if (!phone) return;
-          
-          // wa.me works universally on Android, iOS, and Web
-          const url = `https://wa.me/${phone}?text=${encodeURIComponent(msg)}`;
-          
-          try {
-            await Linking.openURL(url);
-            sosLogger.info(LOG_SOURCE, 'WhatsApp triggered successfully');
-          } catch(e) {
-            console.log('WhatsApp not installed or error:', e);
-          }
-        } 
-      },
-      smsService: { 
-        sendOfflineSMS: async (phones: string[], event: EmergencyEvent) => {
-          if (!phones || phones.length === 0) return;
-          const validPhones = phones.map(p => p.replace(/[^0-9]/g, '')).filter(p => p.length > 0);
-          if (validPhones.length === 0) return;
-          
-          const profile = await authService.getUserProfile();
-          const userName = profile?.name ? profile.name.toUpperCase() : 'YOUR LOVED ONE';
-          const timeStr = new Date().toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' });
-          const locStr = event.location ? `${event.location.latitude},${event.location.longitude}` : 'Unknown';
-          const mapLink = event.location ? `https://maps.google.com/?q=${locStr}` : 'Location unavailable';
-          
-          let msg = `🚨 EMERGENCY ALERT FROM ${userName} 🚨\nHelp needed! Location: ${mapLink}\nTime: ${timeStr}\nBattery: ${event.battery !== undefined ? event.battery + '%' : 'Unknown'}\nTriggered By: SafeSphere AI`;
-          
-          if ((event as any).customMessage) {
-            msg = (event as any).customMessage;
-          }
-          
-          if (Platform.OS === 'web') {
-            console.log('SMS fallback for web: Cannot send native SMS from browser. Message:', msg);
-            return;
-          }
-          
-          const phoneList = Platform.OS === 'ios' ? validPhones.join(',') : validPhones.join(';');
-          const url = `sms:${phoneList}?body=${encodeURIComponent(msg)}`;
-          try {
-            await Linking.openURL(url);
-            sosLogger.info(LOG_SOURCE, 'SMS triggered successfully');
-          } catch(e) {
-            console.log('SMS error:', e);
-          }
-        } 
-      },
+      whatsAppService: new TwilioService(),
+      smsService: new TwilioService(),
       emergencyCallingService: { triggerAutomatedCall: async () => console.log('Mock Automated Call') }
     }),
   });
@@ -181,13 +119,13 @@ export function useVoiceDetection(options: UseVoiceDetectionOptions = {}) {
           for (let i = event.resultIndex; i < event.results.length; i++) {
             transcript += event.results[i][0].transcript;
           }
-          
+
           const text = transcript.toLowerCase();
           if (text.includes('help') || text.includes('emergency') || text.includes('bachao')) {
             sosLogger.info(LOG_SOURCE, 'Web Speech API detected keyword!', { text });
             setIsEmergency(true);
             setPipelineState(VoicePipelineState.EMERGENCY);
-            
+
             // Trigger emergency service directly for web demo
             await services.current.emergency.triggerEmergency({
               decision: { shouldTrigger: true, confidenceScore: 100, status: EmergencyStatus.EMERGENCY, reason: 'Web Speech API keyword detected', timestamp: Date.now(), signals: {} as any, weights: {} as any },
@@ -210,12 +148,12 @@ export function useVoiceDetection(options: UseVoiceDetectionOptions = {}) {
 
         try {
           recognition.start();
-        } catch (e) {}
+        } catch (e) { }
 
         return () => {
           try {
             recognition.stop();
-          } catch(e) {}
+          } catch (e) { }
         };
       }
     }
@@ -294,7 +232,7 @@ export function useVoiceDetection(options: UseVoiceDetectionOptions = {}) {
           });
 
           setConfidenceScore(decision.confidenceScore);
-          
+
           setVoiceData({
             dominantEmotion: emotionResult.emotions[0]?.emotion || 'NEUTRAL',
             panicScore: emotionResult.panicScore,
@@ -370,7 +308,7 @@ export function useVoiceDetection(options: UseVoiceDetectionOptions = {}) {
 
   const stop = useCallback(async () => {
     const s = services.current;
-    
+
     if (unsubscribeChunkRef.current) {
       unsubscribeChunkRef.current();
       unsubscribeChunkRef.current = null;

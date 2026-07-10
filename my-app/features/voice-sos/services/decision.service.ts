@@ -266,10 +266,15 @@ export class DecisionEngine {
       });
     }
 
-    // BYPASS: For demonstration and reliable SOS triggering, if the wake word is clearly detected, guarantee emergency
-    if (signals.keywordScore > 80) {
-      adjustedScore = Math.max(adjustedScore, 90); // Push above EMERGENCY_THRESHOLD
-      sosLogger.info(LOG_SOURCE, 'Escalation bypass: Keyword explicitly detected', {
+    // EXTREME DISTRESS OVERRIDE (National Hackathon Rule)
+    // If the user repeatedly shouts an emergency keyword (Keyword > 85) 
+    // AND shows extreme panic (Emotion > 85), immediately trigger emergency 
+    // even if environmental signals (motion/location) are weak.
+    if (signals.keywordScore > 85 && signals.emotionScore > 85) {
+      adjustedScore = Math.max(adjustedScore, 95); // Force > 90%
+      sosLogger.info(LOG_SOURCE, 'Escalation bypass: EXTREME DISTRESS OVERRIDE applied', {
+        keywordScore: signals.keywordScore,
+        emotionScore: signals.emotionScore,
         boostedScore: adjustedScore,
       });
     }

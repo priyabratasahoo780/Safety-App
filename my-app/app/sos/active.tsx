@@ -30,20 +30,17 @@ export default function ActiveSosScreen() {
   const [countdown, setCountdown] = useState(10);
   const [sosFired, setSosFired] = useState(false);
   const [note, setNote] = useState('');
-  
+
   // Waveform bars simulation
   const [waveHeights, setWaveHeights] = useState([15, 30, 20, 45, 10, 25, 35, 15, 40]);
 
-  // Handle countdown
+  // Trigger immediately on mount (No timer)
   useEffect(() => {
-    if (countdown > 0 && !sosFired) {
-      const timer = setTimeout(() => setCountdown(countdown - 1), 1000);
-      return () => clearTimeout(timer);
-    } else if (countdown === 0 && !sosFired) {
+    if (!sosFired) {
       setSosFired(true);
       triggerManualSOS();
     }
-  }, [countdown, sosFired]);
+  }, [sosFired]);
 
   const triggerManualSOS = async () => {
     try {
@@ -63,11 +60,11 @@ export default function ActiveSosScreen() {
             const mapLink = event.location ? `https://maps.google.com/?q=${locStr}` : 'Location unavailable';
             let msg = `🚨 EMERGENCY ALERT FROM ${userName} 🚨\n\nI need help immediately! My live location and safety details are being shared with you.\n\n📍 *Location*: ${mapLink}\n⏰ *Time*: ${timeStr}\n🔋 *Battery*: ${event.battery !== undefined ? event.battery + '%' : 'Unknown'}\n📶 *Network*: ${event.network || 'Unknown'}\n⚠️ *Triggered By*: SafeSphere Manual SOS\n\nPlease contact me or the authorities immediately!`;
             if (event.customMessage) msg = event.customMessage;
-            
+
             const phone = phones[0].replace(/[^0-9]/g, '');
             if (!phone) return;
             const url = `https://wa.me/${phone}?text=${encodeURIComponent(msg)}`;
-            try { await Linking.openURL(url); } catch(e) {}
+            try { await Linking.openURL(url); } catch (e) { }
           }
         },
         smsService: {
@@ -75,7 +72,7 @@ export default function ActiveSosScreen() {
             if (!phones || phones.length === 0) return;
             const validPhones = phones.map(p => p.replace(/[^0-9]/g, '')).filter(p => p.length > 0);
             if (validPhones.length === 0) return;
-            
+
             const profile = await authService.getUserProfile();
             const userName = profile?.name ? profile.name.toUpperCase() : 'YOUR LOVED ONE';
             const timeStr = new Date().toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' });
@@ -83,14 +80,14 @@ export default function ActiveSosScreen() {
             const mapLink = event.location ? `https://maps.google.com/?q=${locStr}` : 'Location unavailable';
             let msg = `🚨 EMERGENCY ALERT FROM ${userName} 🚨\nHelp needed! Location: ${mapLink}\nTime: ${timeStr}\nBattery: ${event.battery !== undefined ? event.battery + '%' : 'Unknown'}\nTriggered By: SafeSphere Manual SOS`;
             if (event.customMessage) msg = event.customMessage;
-            
+
             if (Platform.OS === 'web') return;
             const phoneList = Platform.OS === 'ios' ? validPhones.join(',') : validPhones.join(';');
             const url = `sms:${phoneList}?body=${encodeURIComponent(msg)}`;
-            try { await Linking.openURL(url); } catch(e) {}
+            try { await Linking.openURL(url); } catch (e) { }
           }
         },
-        emergencyCallingService: { triggerAutomatedCall: async () => {} }
+        emergencyCallingService: { triggerAutomatedCall: async () => { } }
       });
 
       await emergencyService.triggerEmergency({
@@ -141,21 +138,8 @@ export default function ActiveSosScreen() {
       {/* Main Alert Body */}
       <View style={styles.body}>
         {!sosFired ? (
-          /* PENDING ALERT COUNTDOWN STATE */
           <View style={styles.alarmStateContainer}>
-            <Text style={styles.alarmSubTitle}>PREPARING EMERGENCY DISPATCH</Text>
-            
-            {/* Countdown Ring */}
-            <View style={styles.countdownRing}>
-              <View style={styles.countdownRingInner}>
-                <Text style={styles.countdownNumber}>{countdown}</Text>
-                <Text style={styles.countdownSec}>seconds</Text>
-              </View>
-            </View>
-
-            <Text style={styles.alarmWarningText}>
-              DANGER mode will trigger. Guardians will receive your live tracking map and audio recording.
-            </Text>
+            <Text style={styles.alarmSubTitle}>PREPARING EMERGENCY DISPATCH...</Text>
           </View>
         ) : (
           /* SOS ACTIVE FIRED STATE */
@@ -163,7 +147,7 @@ export default function ActiveSosScreen() {
             <View style={styles.sosLiveGlowCircle}>
               <MaterialCommunityIcons name="alert" size={48} color="#FFFFFF" />
             </View>
-            
+
             <Text style={styles.sosActiveTitle}>SOS IS LIVE</Text>
             <Text style={styles.sosActiveSubtitle}>
               Your guardians and emergency contacts have been notified.
@@ -220,7 +204,7 @@ export default function ActiveSosScreen() {
         </TouchableOpacity>
 
         {/* Cancel Action */}
-        <TouchableOpacity 
+        <TouchableOpacity
           style={styles.cancelButton}
           activeOpacity={0.8}
           onPress={handleCancel}
