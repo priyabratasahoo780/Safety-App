@@ -82,7 +82,6 @@ export function useVoiceDetection(options: UseVoiceDetectionOptions = {}) {
 
   // ─── Service Refs ─────────────────────────────────────────────────────
 
-<<<<<<< HEAD
   const services = useRef({
     mic: new MicrophoneService(),
     wakeWord: new WakeWordService(),
@@ -101,106 +100,6 @@ export function useVoiceDetection(options: UseVoiceDetectionOptions = {}) {
       emergencyCallingService: { triggerAutomatedCall: async () => console.log('Mock Automated Call') }
     }),
   });
-=======
-  const services = useRef<any>(null);
-  if (!services.current) {
-    services.current = {
-      mic: new MicrophoneService(),
-      wakeWord: new WakeWordService(),
-      speech: new SpeechService(),
-      emotion: new EmotionService(),
-      sound: new SoundService(),
-      decision: new DecisionEngine(),
-      emergency: new EmergencyService({
-        emergencyRepo: new FirebaseEmergencyRepository(),
-        storageService: new FirebaseStorageService(),
-        evidenceService: new AudioEvidenceService(),
-        guardianRepo: new FirebaseGuardianRepository(),
-        notificationService: new MockNotificationService(),
-        whatsAppService: { 
-          sendWhatsAppAlert: async (phones: string[], event: EmergencyEvent) => {
-            if (!phones || phones.length === 0) return;
-            
-            const profile = await authService.getUserProfile();
-            const userName = profile?.name ? profile.name.toUpperCase() : 'YOUR LOVED ONE';
-            const timeStr = new Date().toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' });
-            const locStr = event.location ? `${event.location.latitude},${event.location.longitude}` : 'Unknown';
-            const mapLink = event.location ? `https://maps.google.com/?q=${locStr}` : 'Location unavailable';
-            
-            let msg = `🚨 EMERGENCY ALERT FROM ${userName} 🚨\n\nI need help immediately! My live location and safety details are being shared with you.\n\n📍 *Location*: ${mapLink}\n⏰ *Time*: ${timeStr}\n🔋 *Battery*: ${event.battery !== undefined ? event.battery + '%' : 'Unknown'}\n📶 *Network*: ${event.network || 'Unknown'}\n⚠️ *Triggered By*: SafeSphere AI Detection\n\nPlease contact me or the authorities immediately!`;
-            
-            // Use custom message if provided (e.g. for evidence followup)
-            if ((event as any).customMessage) {
-              msg = (event as any).customMessage;
-            }
-            
-            try {
-              if (phones.length === 1) {
-                // If only 1 guardian, open direct chat
-                const phone = phones[0].replace(/[^0-9]/g, '');
-                const url = `https://wa.me/${phone}?text=${encodeURIComponent(msg)}`;
-                await Linking.openURL(url);
-              } else {
-                // If 2+ guardians, open WhatsApp broadcast/contact picker so user can select all guardians at once
-                const url = `whatsapp://send?text=${encodeURIComponent(msg)}`;
-                await Linking.openURL(url);
-              }
-              sosLogger.info(LOG_SOURCE, 'WhatsApp triggered successfully for ' + phones.length + ' contacts');
-            } catch(e) {
-              console.log('WhatsApp not installed or error:', e);
-              Alert.alert(
-                "Backend API Triggered", 
-                `SafeSphere Cloud has silently dispatched encrypted WhatsApp messages to all ${phones.length} trusted guardians.`
-              );
-            }
-          } 
-        },
-        smsService: { 
-          sendOfflineSMS: async (phones: string[], event: EmergencyEvent) => {
-            if (!phones || phones.length === 0) return;
-            const validPhones = phones.map(p => p.replace(/[^0-9]/g, '')).filter(p => p.length > 0);
-            if (validPhones.length === 0) return;
-            
-            const profile = await authService.getUserProfile();
-            const userName = profile?.name ? profile.name.toUpperCase() : 'YOUR LOVED ONE';
-            const timeStr = new Date().toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' });
-            const locStr = event.location ? `${event.location.latitude},${event.location.longitude}` : 'Unknown';
-            const mapLink = event.location ? `https://maps.google.com/?q=${locStr}` : 'Location unavailable';
-            
-            let msg = `🚨 EMERGENCY ALERT FROM ${userName} 🚨\nHelp needed! Location: ${mapLink}\nTime: ${timeStr}\nBattery: ${event.battery !== undefined ? event.battery + '%' : 'Unknown'}\nTriggered By: SafeSphere AI`;
-            
-            if ((event as any).customMessage) {
-              msg = (event as any).customMessage;
-            }
-            
-            if (Platform.OS === 'web') {
-              console.log('SMS fallback for web: Cannot send native SMS from browser. Message:', msg);
-              return;
-            }
-            
-            // Android uses ';' to separate multiple numbers, iOS uses ','
-            // Fallback for modern Androids is also ',' so we format it carefully
-            const separator = Platform.OS === 'ios' ? ',' : ';';
-            const phoneList = validPhones.join(separator);
-            const url = `sms:${phoneList}?body=${encodeURIComponent(msg)}`;
-            
-            try {
-              await Linking.openURL(url);
-              sosLogger.info(LOG_SOURCE, `SMS triggered successfully for ${validPhones.length} contacts`);
-            } catch(e) {
-              console.log('SMS error:', e);
-              Alert.alert(
-                "SMS Gateway Active", 
-                `SafeSphere Cloud has securely dispatched SMS alerts to your ${validPhones.length} emergency contacts.`
-              );
-            }
-          } 
-        },
-        emergencyCallingService: { triggerAutomatedCall: async () => console.log('Mock Automated Call') }
-      }),
-    };
-  }
->>>>>>> 210b605d2e7aca0bc0333ae6f8aeab837bf65ea3
 
   const unsubscribeChunkRef = useRef<(() => void) | null>(null);
   const unsubscribeEmergencyRef = useRef<(() => void) | null>(null);

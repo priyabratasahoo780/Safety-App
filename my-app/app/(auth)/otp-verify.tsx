@@ -38,11 +38,7 @@ export default function OtpVerifyScreen() {
       }
       setLoading(true);
       try {
-<<<<<<< HEAD
         await authService.verifyOtp(confirmationResult, otpCode);
-=======
-        await confirmationResult.confirm(otpCode);
->>>>>>> 210b605d2e7aca0bc0333ae6f8aeab837bf65ea3
         router.replace('/(drawer)/(tabs)/home');
       } catch (error: any) {
         Alert.alert('Verification Failed', error.message);
