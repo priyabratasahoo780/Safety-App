@@ -1,47 +1,50 @@
-import { ClerkProvider, useAuth } from "@clerk/clerk-expo";
-import { tokenCache } from "@/src/clerk";
-
 import { DarkTheme, DefaultTheme, ThemeProvider } from "@react-navigation/native";
 import { Stack, useRouter, useSegments } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import "react-native-reanimated";
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
+import { User, onAuthStateChanged } from "firebase/auth";
+import { auth } from "@/src/config/firebaseConfig";
 
 import { useColorScheme } from "@/hooks/use-color-scheme";
 
-const publishableKey = process.env.EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY!;
-
-// Auth guard: session ke hisaab se redirect karta hai
+// Auth guard: Firebase auth state ke hisaab se redirect karta hai
 function InitialLayout() {
-  const { isLoaded, isSignedIn } = useAuth();
+  const [user, setUser] = useState<User | null | undefined>(undefined);
   const segments = useSegments();
   const router = useRouter();
 
   useEffect(() => {
-    if (!isLoaded) return; // Wait for Clerk to load
+    const unsubscribe = onAuthStateChanged(auth, (firebaseUser) => {
+      setUser(firebaseUser);
+    });
+    return unsubscribe;
+  }, []);
+
+  useEffect(() => {
+    if (user === undefined) return; // Still loading
 
     const inAuthGroup = segments[0] === "(auth)";
     const inDrawerGroup = segments[0] === "(drawer)";
 
-    if (isSignedIn && inAuthGroup) {
+    if (user && inAuthGroup) {
       // User signed in hai lekin auth pages par hai — home bhejo
       router.replace("/(drawer)/(tabs)/home");
-    } else if (!isSignedIn && inDrawerGroup) {
+    } else if (!user && inDrawerGroup) {
       // User signed out hai lekin protected pages par hai — sign-in bhejo
       router.replace("/(auth)/sign-in");
     }
-  }, [isLoaded, isSignedIn, segments]);
+  }, [user, segments]);
 
-  if (!isLoaded) {
-    // Clerk load ho raha hai — blank screen dikhao (no flash)
+  if (user === undefined) {
+    // Auth state load ho raha hai — blank screen dikhao (no flash)
     return null;
   }
 
   return (
     <Stack>
       <Stack.Screen name="index" options={{ headerShown: false }} />
-      <Stack.Screen name="features" options={{ headerShown: false }} />
       <Stack.Screen name="(auth)" options={{ headerShown: false }} />
       <Stack.Screen name="(drawer)" options={{ headerShown: false }} />
       <Stack.Screen name="oauth-native-callback" options={{ headerShown: false }} />
@@ -61,16 +64,11 @@ export default function RootLayout() {
   const colorScheme = useColorScheme();
 
   return (
-    <ClerkProvider
-      publishableKey={publishableKey}
-      tokenCache={tokenCache}
-    >
-      <SafeAreaProvider>
-        <ThemeProvider value={colorScheme === "dark" ? DarkTheme : DefaultTheme}>
-          <InitialLayout />
-          <StatusBar style="auto" />
-        </ThemeProvider>
-      </SafeAreaProvider>
-    </ClerkProvider>
+    <SafeAreaProvider>
+      <ThemeProvider value={colorScheme === "dark" ? DarkTheme : DefaultTheme}>
+        <InitialLayout />
+        <StatusBar style="auto" />
+      </ThemeProvider>
+    </SafeAreaProvider>
   );
 }

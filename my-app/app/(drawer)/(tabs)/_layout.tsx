@@ -109,15 +109,19 @@ export default function TabLayout() {
 
 const styles = StyleSheet.create({
   tabBar: {
-    height: Platform.OS === 'ios' ? 88 : 72,
+    height: 64,
     position: 'absolute',
-    borderTopWidth: 1,
-    borderTopColor: '#1E293B', // dark border
+    bottom: Platform.OS === 'ios' ? 24 : 16,
+    left: 16,
+    right: 16,
+    borderRadius: 32,
+    borderWidth: 1,
+    borderColor: '#1E293B',
     backgroundColor: '#0A0D1A', // premium dark navy/black
-    paddingBottom: Platform.OS === 'ios' ? 28 : 12,
-    paddingTop: 8,
+    paddingBottom: 4,
+    paddingTop: 4,
     shadowColor: '#000000',
-    shadowOffset: { width: 0, height: -4 },
+    shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.15,
     shadowRadius: 12,
     elevation: 8,
@@ -141,7 +145,7 @@ const styles = StyleSheet.create({
   },
   sosInnerButton: {
     position: 'absolute',
-    top: Platform.OS === 'ios' ? -18 : -14,
+    top: -20,
     width: 50,
     height: 50,
     borderRadius: 25,
@@ -156,7 +160,7 @@ const styles = StyleSheet.create({
   },
   sosLabel: {
     position: 'absolute',
-    bottom: Platform.OS === 'ios' ? 12 : 8,
+    bottom: 6,
     fontSize: 11,
     fontWeight: '800',
     color: '#DC2626',
