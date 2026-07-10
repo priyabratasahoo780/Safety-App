@@ -477,15 +477,15 @@ export default function HomeScreen() {
             Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
             const user = auth.currentUser;
             if (user) {
-               const repo = new FirebaseGuardianRepository();
-               const guardians = await repo.getRegisteredGuardians(user.uid);
-               if (guardians.length > 0 && guardians[0].phone) {
-                  Linking.openURL(`tel:${guardians[0].phone}`);
-               } else {
-                  Alert.alert('No Guardian', 'Please register a guardian in your profile to use quick dial.');
-               }
+              const repo = new FirebaseGuardianRepository();
+              const guardians = await repo.getRegisteredGuardians(user.uid);
+              if (guardians.length > 0 && guardians[0].phone) {
+                Linking.openURL(`tel:${guardians[0].phone}`);
+              } else {
+                Alert.alert('No Guardian', 'Please register a guardian in your profile to use quick dial.');
+              }
             } else {
-               Alert.alert('Not Logged In', 'Please log in to use this feature.');
+              Alert.alert('Not Logged In', 'Please log in to use this feature.');
             }
           }}>
             <NeumorphicInset rounded={24} padding={14} style={styles.quickDialIcon}>

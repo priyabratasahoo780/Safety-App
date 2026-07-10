@@ -27,7 +27,7 @@ export default function TabLayout() {
   return (
     <Tabs
       screenOptions={{
-        tabBarActiveTintColor: '#6D28D9', // primary.600 (violet)
+        tabBarActiveTintColor: '#A78BFA', // bright violet-400 for dark mode tab bar contrast
         tabBarInactiveTintColor: '#9CA3AF',
         tabBarStyle: styles.tabBar,
         headerShown: false,
@@ -112,13 +112,13 @@ const styles = StyleSheet.create({
     height: Platform.OS === 'ios' ? 88 : 72,
     position: 'absolute',
     borderTopWidth: 1,
-    borderTopColor: '#F3F4F6',
-    backgroundColor: '#FFFFFF',
+    borderTopColor: '#1E293B', // dark border
+    backgroundColor: '#0A0D1A', // premium dark navy/black
     paddingBottom: Platform.OS === 'ios' ? 28 : 12,
     paddingTop: 8,
     shadowColor: '#000000',
     shadowOffset: { width: 0, height: -4 },
-    shadowOpacity: 0.04,
+    shadowOpacity: 0.15,
     shadowRadius: 12,
     elevation: 8,
   },
@@ -129,9 +129,9 @@ const styles = StyleSheet.create({
   },
   activeIconGlow: {
     // Subtle design glow for active icon
-    shadowColor: '#6D28D9',
+    shadowColor: '#A78BFA',
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.15,
+    shadowOpacity: 0.25,
     shadowRadius: 4,
   },
   sosButtonContainer: {

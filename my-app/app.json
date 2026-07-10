@@ -20,6 +20,10 @@
         "monochromeImage": "./assets/images/android-icon-monochrome.png"
       },
       "edgeToEdgeEnabled": true,
+      "navigationBar": {
+        "backgroundColor": "#0A0D1A",
+        "barStyle": "light-content"
+      },
       "predictiveBackGestureEnabled": false,
       "googleServicesFile": "./google-services.json"
     },
