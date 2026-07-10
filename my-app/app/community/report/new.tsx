@@ -4,11 +4,11 @@ import {
   View,
   Text,
   TouchableOpacity,
-  SafeAreaView,
   TextInput,
   ScrollView,
   Alert,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { useRouter } from 'expo-router';
 import { Feather } from '@expo/vector-icons';
@@ -39,7 +39,7 @@ export default function NewReportScreen() {
     
     // Simulate successful incident filing
     Alert.alert('Report Filed', 'Your incident report has been submitted for moderation.', [
-      { text: 'OK', onPress: () => router.replace('/(tabs)/community') }
+      { text: 'OK', onPress: () => router.replace('/(drawer)/(tabs)/community') }
     ]);
   };
 
@@ -327,3 +327,4 @@ const styles = StyleSheet.create({
     fontSize: 16,
   },
 });
+

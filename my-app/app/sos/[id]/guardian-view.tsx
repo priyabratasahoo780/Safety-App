@@ -1,10 +1,11 @@
 import React from 'react';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import {
   StyleSheet,
   View,
   Text,
   TouchableOpacity,
-  SafeAreaView,
+  ScrollView,
 } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { useRouter, useLocalSearchParams } from 'expo-router';
@@ -15,7 +16,7 @@ export default function GuardianViewScreen() {
   const { id } = useLocalSearchParams();
 
   const handleResolve = () => {
-    router.replace('/(tabs)/home');
+    router.replace('/(drawer)/(tabs)/home');
   };
 
   return (

@@ -6,12 +6,12 @@ import {
   TextInput,
   TouchableOpacity,
   ScrollView,
-  SafeAreaView,
   KeyboardAvoidingView,
   Platform,
   Alert,
   ActivityIndicator,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { Image } from 'expo-image';
 import { StatusBar } from 'expo-status-bar';
 import { useRouter } from 'expo-router';
@@ -39,7 +39,7 @@ export default function OtpVerifyScreen() {
       setLoading(true);
       try {
         await authService.verifyOtp(confirmationResult, otpCode);
-        router.replace('/(tabs)/home');
+        router.replace('/(drawer)/(tabs)/home');
       } catch (error: any) {
         Alert.alert('Verification Failed', error.message);
       } finally {
@@ -445,3 +445,4 @@ const styles = StyleSheet.create({
     lineHeight: 18,
   },
 });
+

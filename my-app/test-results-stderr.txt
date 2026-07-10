@@ -1,0 +1,760 @@
+﻿node.exe : FAIL src/AI_Voice_SOS_Module/tests/wakeword.test.ts
+At line:1 char:1
++ & "C:\Program Files\nodejs/node.exe" "C:\Program Files\nodejs/node_mo ...
++ ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (FAIL src/AI_Voi...akeword.test.ts:String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+ 
+  ΓùÅ Console
+
+    console.debug
+      [SOS:DEBUG][WakeWordService] WakeWordService initialized { wordCount: 12 }
+
+      at SOSLogger.debug [as log] (src/AI_Voice_SOS_Module/utils/logger.ts:200:19)
+
+    console.info
+      [SOS:INFO][WakeWordService] Wake word detected { word: 'help', confidence: 0.9, matchDistance: 0, language: 'en' 
+}
+
+      at SOSLogger.info [as log] (src/AI_Voice_SOS_Module/utils/logger.ts:203:19)
+
+    console.debug
+      [SOS:DEBUG][WakeWordService] WakeWordService initialized { wordCount: 12 }
+
+      at SOSLogger.debug [as log] (src/AI_Voice_SOS_Module/utils/logger.ts:200:19)
+
+    console.info
+      [SOS:INFO][WakeWordService] Wake word detected { word: 'bachao', confidence: 0.95, matchDistance: 0, language: 
+'hi' }
+
+      at SOSLogger.info [as log] (src/AI_Voice_SOS_Module/utils/logger.ts:203:19)
+
+    console.debug
+      [SOS:DEBUG][WakeWordService] WakeWordService initialized { wordCount: 12 }
+
+      at SOSLogger.debug [as log] (src/AI_Voice_SOS_Module/utils/logger.ts:200:19)
+
+    console.info
+      [SOS:INFO][WakeWordService] Wake word detected {
+        word: 'help me',
+        confidence: 0.6333333333333334,
+        matchDistance: 1,
+        language: 'en'
+      }
+
+      at SOSLogger.info [as log] (src/AI_Voice_SOS_Module/utils/logger.ts:203:19)
+
+    console.debug
+      [SOS:DEBUG][WakeWordService] WakeWordService initialized { wordCount: 12 }
+
+      at SOSLogger.debug [as log] (src/AI_Voice_SOS_Module/utils/logger.ts:200:19)
+
+    console.debug
+      [SOS:DEBUG][WakeWordService] WakeWordService initialized { wordCount: 12 }
+
+      at SOSLogger.debug [as log] (src/AI_Voice_SOS_Module/utils/logger.ts:200:19)
+
+    console.info
+      [SOS:INFO][WakeWordService] Custom wake word added { word: 'pineapple', language: 'en' }
+
+      at SOSLogger.info [as log] (src/AI_Voice_SOS_Module/utils/logger.ts:203:19)
+
+    console.info
+      [SOS:INFO][WakeWordService] Wake word detected {
+        word: 'pineapple',
+        confidence: 0.9,
+        matchDistance: 0,
+        language: 'en'
+      }
+
+      at SOSLogger.info [as log] (src/AI_Voice_SOS_Module/utils/logger.ts:203:19)
+
+  ΓùÅ WakeWordService ΓÇ║ should detect exact English wake words
+
+    expect(received).toBe(expected) // Object.is equality
+
+    Expected: "help me"
+    Received: "help"
+
+    [0m [90m 12 |[39m     [36mconst[39m result [33m=[39m service[33m.[39mmatchText([32m'help 
+me'[39m)[33m;[39m
+     [90m 13 |[39m     expect(result[33m.[39mdetected)[33m.[39mtoBe([36mtrue[39m)[33m;[39m
+    [31m[1m>[22m[39m[90m 14 |[39m     expect(result[33m.[39mword)[33m.[39mtoBe([32m'help 
+me'[39m)[33m;[39m
+     [90m    |[39m                         [31m[1m^[22m[39m
+     [90m 15 |[39m     expect(result[33m.[39mconfidence)[33m.[39mtoBeGreaterThan([35m0.9[39m)[33m;[39m
+     [90m 16 |[39m   })[33m;[39m
+     [90m 17 |[39m[0m
+
+      at Object.toBe (src/AI_Voice_SOS_Module/tests/wakeword.test.ts:14:25)
+
+  ΓùÅ WakeWordService ΓÇ║ should detect wake words with fuzzy matching (typos)
+
+    expect(received).toBe(expected) // Object.is equality
+
+    Expected: "help"
+    Received: "help me"
+
+    [0m [90m 26 |[39m     [36mconst[39m result [33m=[39m service[33m.[39mmatchText([32m'hlp 
+me'[39m)[33m;[39m
+     [90m 27 |[39m     expect(result[33m.[39mdetected)[33m.[39mtoBe([36mtrue[39m)[33m;[39m
+    [31m[1m>[22m[39m[90m 28 |[39m     expect(result[33m.[39mword)[33m.[39mtoBe([32m'help'[39m)[33m;[39m 
+[90m// Matches closest primary[39m
+     [90m    |[39m                         [31m[1m^[22m[39m
+     [90m 29 |[39m   })[33m;[39m
+     [90m 30 |[39m
+     [90m 31 |[39m   it([32m'should ignore normal conversation'[39m[33m,[39m () [33m=>[39m {[0m
+
+      at Object.toBe (src/AI_Voice_SOS_Module/tests/wakeword.test.ts:28:25)
+
+FAIL src/AI_Voice_SOS_Module/tests/emergency.test.ts
+  ΓùÅ Console
+
+    console.debug
+      [SOS:DEBUG][EmergencyService] EmergencyService initialized { autoDispatch: false, cooldownMs: 100 }
+
+      at SOSLogger.debug [as log] (src/AI_Voice_SOS_Module/utils/logger.ts:200:19)
+
+    console.error
+      [SOS:EMERGENCY][EmergencyService] EMERGENCY TRIGGERED {
+        id: 'sos_mrei2vv7_13ebs9_1',
+        riskScore: 0,
+        panicScore: 90,
+        confidenceScore: 90,
+        keyword: 'help'
+      }
+
+    [0m [90m 207 |[39m           [36mbreak[39m[33m;[39m
+     [90m 208 |[39m         [36mcase[39m [33mLogLevel[39m[33m.[39m[33mEMERGENCY[39m[33m:[39m
+    [31m[1m>[22m[39m[90m 209 |[39m           console[33m.[39merror(prefix[33m,[39m message[33m,[39m 
+sanitizedData [33m?[39m[33m?[39m [32m''[39m)[33m;[39m
+     [90m     |[39m                   [31m[1m^[22m[39m
+     [90m 210 |[39m           [36mbreak[39m[33m;[39m
+     [90m 211 |[39m       }
+     [90m 212 |[39m     }[0m
+
+      at SOSLogger.error [as log] (src/AI_Voice_SOS_Module/utils/logger.ts:209:19)
+      at SOSLogger.log [as emergency] (src/AI_Voice_SOS_Module/utils/logger.ts:74:10)
+      at EmergencyService.emergency (src/AI_Voice_SOS_Module/services/emergency.service.ts:124:15)
+      at asyncGeneratorStep (node_modules/@babel/runtime/helpers/asyncToGenerator.js:3:17)
+      at _next (node_modules/@babel/runtime/helpers/asyncToGenerator.js:17:9)
+      at node_modules/@babel/runtime/helpers/asyncToGenerator.js:22:7
+      at EmergencyService.<anonymous> (node_modules/@babel/runtime/helpers/asyncToGenerator.js:14:12)
+      at EmergencyService.apply [as triggerEmergency] (src/AI_Voice_SOS_Module/services/emergency.service.ts:91:25)
+      at Object.triggerEmergency (src/AI_Voice_SOS_Module/tests/emergency.test.ts:44:33)
+      at asyncGeneratorStep (node_modules/@babel/runtime/helpers/asyncToGenerator.js:3:17)
+      at _next (node_modules/@babel/runtime/helpers/asyncToGenerator.js:17:9)
+      at node_modules/@babel/runtime/helpers/asyncToGenerator.js:22:7
+      at Object.<anonymous> (node_modules/@babel/runtime/helpers/asyncToGenerator.js:14:12)
+
+    console.debug
+      [SOS:DEBUG][EmergencyService] EmergencyService initialized { autoDispatch: false, cooldownMs: 100 }
+
+      at SOSLogger.debug [as log] (src/AI_Voice_SOS_Module/utils/logger.ts:200:19)
+
+    console.info
+      [SOS:INFO][EmergencyService] Trigger handler registered: startRecording
+
+      at SOSLogger.info [as log] (src/AI_Voice_SOS_Module/utils/logger.ts:203:19)
+
+    console.debug
+      [SOS:DEBUG][EmergencyService] Config updated {
+        config: {
+          autoDispatchTriggers: true,
+          cooldownMs: 100,
+          maxTimelineEntries: 100
+        }
+      }
+
+      at SOSLogger.debug [as log] (src/AI_Voice_SOS_Module/utils/logger.ts:200:19)
+
+    console.error
+      [SOS:EMERGENCY][EmergencyService] EMERGENCY TRIGGERED {
+        id: 'sos_mrei2vvc_ia05vt_1',
+        riskScore: 0,
+        panicScore: 90,
+        confidenceScore: 90,
+        keyword: 'help'
+      }
+
+    [0m [90m 207 |[39m           [36mbreak[39m[33m;[39m
+     [90m 208 |[39m         [36mcase[39m [33mLogLevel[39m[33m.[39m[33mEMERGENCY[39m[33m:[39m
+    [31m[1m>[22m[39m[90m 209 |[39m           console[33m.[39merror(prefix[33m,[39m message[33m,[39m 
+sanitizedData [33m?[39m[33m?[39m [32m''[39m)[33m;[39m
+     [90m     |[39m                   [31m[1m^[22m[39m
+     [90m 210 |[39m           [36mbreak[39m[33m;[39m
+     [90m 211 |[39m       }
+     [90m 212 |[39m     }[0m
+
+      at SOSLogger.error [as log] (src/AI_Voice_SOS_Module/utils/logger.ts:209:19)
+      at SOSLogger.log [as emergency] (src/AI_Voice_SOS_Module/utils/logger.ts:74:10)
+      at EmergencyService.emergency (src/AI_Voice_SOS_Module/services/emergency.service.ts:124:15)
+      at asyncGeneratorStep (node_modules/@babel/runtime/helpers/asyncToGenerator.js:3:17)
+      at _next (node_modules/@babel/runtime/helpers/asyncToGenerator.js:17:9)
+      at node_modules/@babel/runtime/helpers/asyncToGenerator.js:22:7
+      at EmergencyService.<anonymous> (node_modules/@babel/runtime/helpers/asyncToGenerator.js:14:12)
+      at EmergencyService.apply [as triggerEmergency] (src/AI_Voice_SOS_Module/services/emergency.service.ts:91:25)
+      at Object.triggerEmergency (src/AI_Voice_SOS_Module/tests/emergency.test.ts:60:19)
+      at asyncGeneratorStep (node_modules/@babel/runtime/helpers/asyncToGenerator.js:3:17)
+      at _next (node_modules/@babel/runtime/helpers/asyncToGenerator.js:17:9)
+      at node_modules/@babel/runtime/helpers/asyncToGenerator.js:22:7
+      at Object.<anonymous> (node_modules/@babel/runtime/helpers/asyncToGenerator.js:14:12)
+
+    console.info
+      [SOS:INFO][EmergencyService] Dispatching emergency triggers { registeredTriggers: [ 'startRecording' ] }
+
+      at SOSLogger.info [as log] (src/AI_Voice_SOS_Module/utils/logger.ts:203:19)
+
+    console.debug
+      [SOS:DEBUG][EmergencyService] No handler registered for: startLocationSharing
+
+      at SOSLogger.debug [as log] (src/AI_Voice_SOS_Module/utils/logger.ts:200:19)
+          at Array.map (<anonymous>)
+
+    console.debug
+      [SOS:DEBUG][EmergencyService] No handler registered for: notifyGuardian
+
+      at SOSLogger.debug [as log] (src/AI_Voice_SOS_Module/utils/logger.ts:200:19)
+          at Array.map (<anonymous>)
+
+    console.debug
+      [SOS:DEBUG][EmergencyService] No handler registered for: sendOfflineSMS
+
+      at SOSLogger.debug [as log] (src/AI_Voice_SOS_Module/utils/logger.ts:200:19)
+          at Array.map (<anonymous>)
+
+    console.debug
+      [SOS:DEBUG][EmergencyService] No handler registered for: startEvidenceCollection
+
+      at SOSLogger.debug [as log] (src/AI_Voice_SOS_Module/utils/logger.ts:200:19)
+          at Array.map (<anonymous>)
+
+    console.info
+      [SOS:INFO][EmergencyService] Trigger dispatched: startRecording
+
+      at SOSLogger.info [as log] (src/AI_Voice_SOS_Module/utils/logger.ts:203:19)
+
+    console.info
+      [SOS:INFO][EmergencyService] All triggers dispatched {
+        results: [
+          {
+            trigger: 'startLocationSharing',
+            success: false,
+            error: 'No handler registered'
+          },
+          {
+            trigger: 'notifyGuardian',
+            success: false,
+            error: 'No handler registered'
+          },
+          {
+            trigger: 'sendOfflineSMS',
+            success: false,
+            error: 'No handler registered'
+          },
+          {
+            trigger: 'startEvidenceCollection',
+            success: false,
+            error: 'No handler registered'
+          },
+          { trigger: 'startRecording', success: true }
+        ],
+        successCount: 1,
+        failCount: 4
+      }
+
+      at SOSLogger.info [as log] (src/AI_Voice_SOS_Module/utils/logger.ts:203:19)
+
+    console.debug
+      [SOS:DEBUG][EmergencyService] EmergencyService initialized { autoDispatch: false, cooldownMs: 100 }
+
+      at SOSLogger.debug [as log] (src/AI_Voice_SOS_Module/utils/logger.ts:200:19)
+
+    console.error
+      [SOS:EMERGENCY][EmergencyService] EMERGENCY TRIGGERED {
+        id: 'sos_mrei2vvi_vglcm2_1',
+        riskScore: 0,
+        panicScore: 90,
+        confidenceScore: 90,
+        keyword: 'help'
+      }
+
+    [0m [90m 207 |[39m           [36mbreak[39m[33m;[39m
+     [90m 208 |[39m         [36mcase[39m [33mLogLevel[39m[33m.[39m[33mEMERGENCY[39m[33m:[39m
+    [31m[1m>[22m[39m[90m 209 |[39m           console[33m.[39merror(prefix[33m,[39m message[33m,[39m 
+sanitizedData [33m?[39m[33m?[39m [32m''[39m)[33m;[39m
+     [90m     |[39m                   [31m[1m^[22m[39m
+     [90m 210 |[39m           [36mbreak[39m[33m;[39m
+     [90m 211 |[39m       }
+     [90m 212 |[39m     }[0m
+
+      at SOSLogger.error [as log] (src/AI_Voice_SOS_Module/utils/logger.ts:209:19)
+      at SOSLogger.log [as emergency] (src/AI_Voice_SOS_Module/utils/logger.ts:74:10)
+      at EmergencyService.emergency (src/AI_Voice_SOS_Module/services/emergency.service.ts:124:15)
+      at asyncGeneratorStep (node_modules/@babel/runtime/helpers/asyncToGenerator.js:3:17)
+      at _next (node_modules/@babel/runtime/helpers/asyncToGenerator.js:17:9)
+      at node_modules/@babel/runtime/helpers/asyncToGenerator.js:22:7
+      at EmergencyService.<anonymous> (node_modules/@babel/runtime/helpers/asyncToGenerator.js:14:12)
+      at EmergencyService.apply [as triggerEmergency] (src/AI_Voice_SOS_Module/services/emergency.service.ts:91:25)
+      at Object.triggerEmergency (src/AI_Voice_SOS_Module/tests/emergency.test.ts:67:19)
+      at asyncGeneratorStep (node_modules/@babel/runtime/helpers/asyncToGenerator.js:3:17)
+      at _next (node_modules/@babel/runtime/helpers/asyncToGenerator.js:17:9)
+      at node_modules/@babel/runtime/helpers/asyncToGenerator.js:22:7
+      at Object.<anonymous> (node_modules/@babel/runtime/helpers/asyncToGenerator.js:14:12)
+
+    console.warn
+      [SOS:WARN][EmergencyService] Emergency trigger in cooldown period, ignoring { cooldownMs: 100, timeSinceLast: 1 }
+
+    [0m [90m 204 |[39m           [36mbreak[39m[33m;[39m
+     [90m 205 |[39m         [36mcase[39m [33mLogLevel[39m[33m.[39m[33mWARN[39m[33m:[39m
+    [31m[1m>[22m[39m[90m 206 |[39m           console[33m.[39mwarn(prefix[33m,[39m message[33m,[39m 
+sanitizedData [33m?[39m[33m?[39m [32m''[39m)[33m;[39m
+     [90m     |[39m                   [31m[1m^[22m[39m
+     [90m 207 |[39m           [36mbreak[39m[33m;[39m
+     [90m 208 |[39m         [36mcase[39m [33mLogLevel[39m[33m.[39m[33mEMERGENCY[39m[33m:[39m
+     [90m 209 |[39m           console[33m.[39merror(prefix[33m,[39m message[33m,[39m sanitizedData 
+[33m?[39m[33m?[39m [32m''[39m)[33m;[39m[0m
+
+      at SOSLogger.warn [as log] (src/AI_Voice_SOS_Module/utils/logger.ts:206:19)
+      at SOSLogger.log [as warn] (src/AI_Voice_SOS_Module/utils/logger.ts:66:10)
+      at EmergencyService.warn (src/AI_Voice_SOS_Module/services/emergency.service.ts:105:17)
+      at asyncGeneratorStep (node_modules/@babel/runtime/helpers/asyncToGenerator.js:3:17)
+      at _next (node_modules/@babel/runtime/helpers/asyncToGenerator.js:17:9)
+      at node_modules/@babel/runtime/helpers/asyncToGenerator.js:22:7
+      at EmergencyService.<anonymous> (node_modules/@babel/runtime/helpers/asyncToGenerator.js:14:12)
+      at EmergencyService.apply [as triggerEmergency] (src/AI_Voice_SOS_Module/services/emergency.service.ts:91:25)
+      at Object.triggerEmergency (src/AI_Voice_SOS_Module/tests/emergency.test.ts:70:26)
+      at asyncGeneratorStep (node_modules/@babel/runtime/helpers/asyncToGenerator.js:3:17)
+      at _next (node_modules/@babel/runtime/helpers/asyncToGenerator.js:17:9)
+
+  ΓùÅ EmergencyService ΓÇ║ should enforce cooldown period
+
+    expect(received).rejects.toThrow()
+
+    Received promise resolved instead of rejected
+    Resolved to value: {"battery": 100, "confidenceScore": 90, "emotionBreakdown": [], "id": "sos_mrei2vvi_vglcm2_1", 
+"keyword": "help", "language": "en", "location": null, "network": "ONLINE", "panicScore": 90, "riskScore": 0, 
+"signals": {"detectedKeyword": "help", "emotionScore": 90, "isFalseAlarmContext": false, "keywordScore": 90, 
+"locationScore": 0, "motionScore": 0, "soundScore": 90, "speechText": "help me", "timeScore": 0}, "soundBreakdown": 
+[], "speechText": "help me", "status": "EMERGENCY", "timeline": [{"data": {"confidenceScore": 90, "id": 
+"sos_mrei2vv7_13ebs9_1", "keyword": "help", "panicScore": 90, "riskScore": 0}, "description": "EMERGENCY TRIGGERED", 
+"event": "EMERGENCY TRIGGERED", "id": "timeline_1_1783661627349", "timestamp": 1783661627349}, {"data": 
+{"confidenceScore": 90, "id": "sos_mrei2vv7_13ebs9_1", "panicScore": 90, "riskScore": 0}, "description": "Emergency 
+event generated (ID: sos_mrei2vv7_13ebs9_1, confidence: 90%)", "event": "EMERGENCY_TRIGGERED", "id": 
+"timeline_2_1783661627349", "timestamp": 1783661627349}, {"data": {"confidenceScore": 90, "id": 
+"sos_mrei2vvc_ia05vt_1", "keyword": "help", "panicScore": 90, "riskScore": 0}, "description": "EMERGENCY TRIGGERED", 
+"event": "EMERGENCY TRIGGERED", "id": "timeline_3_1783661627352", "timestamp": 1783661627352}, {"data": 
+{"confidenceScore": 90, "id": "sos_mrei2vvc_ia05vt_1", "panicScore": 90, "riskScore": 0}, "description": "Emergency 
+event generated (ID: sos_mrei2vvc_ia05vt_1, confidence: 90%)", "event": "EMERGENCY_TRIGGERED", "id": 
+"timeline_4_1783661627352", "timestamp": 1783661627352}, {"data": {"trigger": "startRecording"}, "description": 
+"startRecording triggered successfully", "event": "TRIGGER_DISPATCHED", "id": "timeline_5_1783661627357", "timestamp": 
+1783661627357}], "timestamp": 1783661627358}
+
+    [0m [90m 68 |[39m     
+     [90m 69 |[39m     [90m// Second immediate trigger should throw[39m
+    [31m[1m>[22m[39m[90m 70 |[39m     [36mawait[39m expect(service[33m.[39mtriggerEmergency(triggerParams))[
+33m.[39mrejects[33m.[39mtoThrow([35m/cooldown/[39m)[33m;[39m
+     [90m    |[39m           [31m[1m^[22m[39m
+     [90m 71 |[39m   })[33m;[39m
+     [90m 72 |[39m })[33m;[39m
+     [90m 73 |[39m[0m
+
+      at expect (node_modules/@jest/expect/node_modules/expect/build/index.js:113:15)
+      at Object.expect (src/AI_Voice_SOS_Module/tests/emergency.test.ts:70:11)
+      at asyncGeneratorStep (node_modules/@babel/runtime/helpers/asyncToGenerator.js:3:17)
+      at _next (node_modules/@babel/runtime/helpers/asyncToGenerator.js:17:9)
+
+PASS src/AI_Voice_SOS_Module/tests/emotion.test.ts
+  ΓùÅ Console
+
+    console.debug
+      [SOS:DEBUG][EmotionService] EmotionService initialized
+
+      at SOSLogger.debug [as log] (src/AI_Voice_SOS_Module/utils/logger.ts:200:19)
+
+    console.debug
+      [SOS:DEBUG][EmotionService] EmotionService initialized
+
+      at SOSLogger.debug [as log] (src/AI_Voice_SOS_Module/utils/logger.ts:200:19)
+
+    console.info
+      [SOS:INFO][EmotionService] Emotion analysis complete { panicScore: 37, dominantEmotion: 'VOICE_TREMBLING', 
+emotionCount: 6 }
+
+      at SOSLogger.info [as log] (src/AI_Voice_SOS_Module/utils/logger.ts:203:19)
+
+PASS src/AI_Voice_SOS_Module/tests/false-alarm.test.ts
+  ΓùÅ Console
+
+    console.debug
+      [SOS:DEBUG][DecisionEngine] DecisionEngine initialized {
+        weights: {
+          keyword: 0.15,
+          emotion: 0.3,
+          sound: 0.2,
+          motion: 0.1,
+          location: 0.15,
+          time: 0.1
+        }
+      }
+
+      at SOSLogger.debug [as log] (src/AI_Voice_SOS_Module/utils/logger.ts:200:19)
+
+    console.info
+      [SOS:INFO][DecisionEngine] Evaluating signals {
+        keywordScore: 90,
+        emotionScore: 80,
+        soundScore: 80,
+        motionScore: 90,
+        locationScore: 90,
+        timeScore: 90,
+        detectedKeyword: 'help'
+      }
+
+      at SOSLogger.info [as log] (src/AI_Voice_SOS_Module/utils/logger.ts:203:19)
+
+    console.debug
+      [SOS:DEBUG][DecisionEngine] False alarm: matched known phrase {
+        phrase: 'help me with homework',
+        speechText: 'help me with homework'
+      }
+
+      at SOSLogger.debug [as log] (src/AI_Voice_SOS_Module/utils/logger.ts:200:19)
+
+    console.info
+      [SOS:INFO][DecisionEngine] False alarm context detected, reducing keyword score { original: 90, reduced: 9, 
+speechText: 'help me with homework' }
+
+      at SOSLogger.info [as log] (src/AI_Voice_SOS_Module/utils/logger.ts:203:19)
+
+    console.info
+      [SOS:INFO][DecisionEngine] Safeguard: false alarm context cap applied
+
+      at SOSLogger.info [as log] (src/AI_Voice_SOS_Module/utils/logger.ts:203:19)
+
+    console.info
+      [SOS:INFO][DecisionEngine] Decision made {
+        confidenceScore: 40,
+        status: 'MONITORING',
+        reason: 'Risk level within normal range (40%). Continuing monitoring.',
+        shouldTrigger: false
+      }
+
+      at SOSLogger.info [as log] (src/AI_Voice_SOS_Module/utils/logger.ts:203:19)
+
+    console.debug
+      [SOS:DEBUG][DecisionEngine] DecisionEngine initialized {
+        weights: {
+          keyword: 0.15,
+          emotion: 0.3,
+          sound: 0.2,
+          motion: 0.1,
+          location: 0.15,
+          time: 0.1
+        }
+      }
+
+      at SOSLogger.debug [as log] (src/AI_Voice_SOS_Module/utils/logger.ts:200:19)
+
+    console.info
+      [SOS:INFO][DecisionEngine] Evaluating signals {
+        keywordScore: 90,
+        emotionScore: 80,
+        soundScore: 80,
+        motionScore: 90,
+        locationScore: 90,
+        timeScore: 90,
+        detectedKeyword: 'save me'
+      }
+
+      at SOSLogger.info [as log] (src/AI_Voice_SOS_Module/utils/logger.ts:203:19)
+
+    console.debug
+      [SOS:DEBUG][DecisionEngine] False alarm: gaming/entertainment context
+
+      at SOSLogger.debug [as log] (src/AI_Voice_SOS_Module/utils/logger.ts:200:19)
+
+    console.info
+      [SOS:INFO][DecisionEngine] False alarm context detected, reducing keyword score {
+        original: 90,
+        reduced: 9,
+        speechText: 'save me they are shooting in pubg'
+      }
+
+      at SOSLogger.info [as log] (src/AI_Voice_SOS_Module/utils/logger.ts:203:19)
+
+    console.info
+      [SOS:INFO][DecisionEngine] Safeguard: false alarm context cap applied
+
+      at SOSLogger.info [as log] (src/AI_Voice_SOS_Module/utils/logger.ts:203:19)
+
+    console.info
+      [SOS:INFO][DecisionEngine] Decision made {
+        confidenceScore: 40,
+        status: 'MONITORING',
+        reason: 'Risk level within normal range (40%). Continuing monitoring.',
+        shouldTrigger: false
+      }
+
+      at SOSLogger.info [as log] (src/AI_Voice_SOS_Module/utils/logger.ts:203:19)
+
+    console.debug
+      [SOS:DEBUG][DecisionEngine] DecisionEngine initialized {
+        weights: {
+          keyword: 0.15,
+          emotion: 0.3,
+          sound: 0.2,
+          motion: 0.1,
+          location: 0.15,
+          time: 0.1
+        }
+      }
+
+      at SOSLogger.debug [as log] (src/AI_Voice_SOS_Module/utils/logger.ts:200:19)
+
+    console.info
+      [SOS:INFO][DecisionEngine] Evaluating signals {
+        keywordScore: 90,
+        emotionScore: 80,
+        soundScore: 80,
+        motionScore: 90,
+        locationScore: 90,
+        timeScore: 90,
+        detectedKeyword: 'help me'
+      }
+
+      at SOSLogger.info [as log] (src/AI_Voice_SOS_Module/utils/logger.ts:203:19)
+
+    console.debug
+      [SOS:DEBUG][DecisionEngine] False alarm: matched known phrase {
+        phrase: 'can you help me',
+        speechText: 'can you help me fix this thing'
+      }
+
+      at SOSLogger.debug [as log] (src/AI_Voice_SOS_Module/utils/logger.ts:200:19)
+
+    console.info
+      [SOS:INFO][DecisionEngine] False alarm context detected, reducing keyword score {
+        original: 90,
+        reduced: 9,
+        speechText: 'can you help me fix this thing'
+      }
+
+      at SOSLogger.info [as log] (src/AI_Voice_SOS_Module/utils/logger.ts:203:19)
+
+    console.info
+      [SOS:INFO][DecisionEngine] Safeguard: false alarm context cap applied
+
+      at SOSLogger.info [as log] (src/AI_Voice_SOS_Module/utils/logger.ts:203:19)
+
+    console.info
+      [SOS:INFO][DecisionEngine] Decision made {
+        confidenceScore: 40,
+        status: 'MONITORING',
+        reason: 'Risk level within normal range (40%). Continuing monitoring.',
+        shouldTrigger: false
+      }
+
+      at SOSLogger.info [as log] (src/AI_Voice_SOS_Module/utils/logger.ts:203:19)
+
+    console.debug
+      [SOS:DEBUG][DecisionEngine] DecisionEngine initialized {
+        weights: {
+          keyword: 0.15,
+          emotion: 0.3,
+          sound: 0.2,
+          motion: 0.1,
+          location: 0.15,
+          time: 0.1
+        }
+      }
+
+      at SOSLogger.debug [as log] (src/AI_Voice_SOS_Module/utils/logger.ts:200:19)
+
+    console.info
+      [SOS:INFO][DecisionEngine] Evaluating signals {
+        keywordScore: 90,
+        emotionScore: 80,
+        soundScore: 80,
+        motionScore: 90,
+        locationScore: 90,
+        timeScore: 90,
+        detectedKeyword: 'help me'
+      }
+
+      at SOSLogger.info [as log] (src/AI_Voice_SOS_Module/utils/logger.ts:203:19)
+
+    console.info
+      [SOS:INFO][DecisionEngine] Decision made {
+        confidenceScore: 85,
+        status: 'EMERGENCY',
+        reason: 'Emergency triggered (85%): distress keyword "help me" detected, high emotional distress in voice, 
+dangerous background sounds detected, erratic/impact motion detected, high-risk location/time context.',
+        shouldTrigger: true
+      }
+
+      at SOSLogger.info [as log] (src/AI_Voice_SOS_Module/utils/logger.ts:203:19)
+
+PASS src/AI_Voice_SOS_Module/tests/decision.test.ts
+  ΓùÅ Console
+
+    console.debug
+      [SOS:DEBUG][DecisionEngine] DecisionEngine initialized {
+        weights: {
+          keyword: 0.15,
+          emotion: 0.3,
+          sound: 0.2,
+          motion: 0.1,
+          location: 0.15,
+          time: 0.1
+        }
+      }
+
+      at SOSLogger.debug [as log] (src/AI_Voice_SOS_Module/utils/logger.ts:200:19)
+
+    console.info
+      [SOS:INFO][DecisionEngine] Evaluating signals {
+        keywordScore: 90,
+        emotionScore: 90,
+        soundScore: 90,
+        motionScore: 90,
+        locationScore: 90,
+        timeScore: 90,
+        detectedKeyword: 'help'
+      }
+
+      at SOSLogger.info [as log] (src/AI_Voice_SOS_Module/utils/logger.ts:203:19)
+
+    console.info
+      [SOS:INFO][DecisionEngine] Decision made {
+        confidenceScore: 90,
+        status: 'EMERGENCY',
+        reason: 'Emergency triggered (90%): distress keyword "help" detected, high emotional distress in voice, 
+dangerous background sounds detected, erratic/impact motion detected, high-risk location/time context.',
+        shouldTrigger: true
+      }
+
+      at SOSLogger.info [as log] (src/AI_Voice_SOS_Module/utils/logger.ts:203:19)
+
+    console.debug
+      [SOS:DEBUG][DecisionEngine] DecisionEngine initialized {
+        weights: {
+          keyword: 0.15,
+          emotion: 0.3,
+          sound: 0.2,
+          motion: 0.1,
+          location: 0.15,
+          time: 0.1
+        }
+      }
+
+      at SOSLogger.debug [as log] (src/AI_Voice_SOS_Module/utils/logger.ts:200:19)
+
+    console.info
+      [SOS:INFO][DecisionEngine] Evaluating signals {
+        keywordScore: 20,
+        emotionScore: 30,
+        soundScore: 0,
+        motionScore: 90,
+        locationScore: 90,
+        timeScore: 90,
+        detectedKeyword: null
+      }
+
+      at SOSLogger.info [as log] (src/AI_Voice_SOS_Module/utils/logger.ts:203:19)
+
+    console.info
+      [SOS:INFO][DecisionEngine] Decision made {
+        confidenceScore: 44,
+        status: 'MONITORING',
+        reason: 'Risk level within normal range (44%). Continuing monitoring.',
+        shouldTrigger: false
+      }
+
+      at SOSLogger.info [as log] (src/AI_Voice_SOS_Module/utils/logger.ts:203:19)
+
+    console.debug
+      [SOS:DEBUG][DecisionEngine] DecisionEngine initialized {
+        weights: {
+          keyword: 0.15,
+          emotion: 0.3,
+          sound: 0.2,
+          motion: 0.1,
+          location: 0.15,
+          time: 0.1
+        }
+      }
+
+      at SOSLogger.debug [as log] (src/AI_Voice_SOS_Module/utils/logger.ts:200:19)
+
+    console.info
+      [SOS:INFO][DecisionEngine] Evaluating signals {
+        keywordScore: 80,
+        emotionScore: 60,
+        soundScore: 60,
+        motionScore: 90,
+        locationScore: 90,
+        timeScore: 90,
+        detectedKeyword: 'stop'
+      }
+
+      at SOSLogger.info [as log] (src/AI_Voice_SOS_Module/utils/logger.ts:203:19)
+
+    console.info
+      [SOS:INFO][DecisionEngine] Decision made {
+        confidenceScore: 74,
+        status: 'HIGH_ALERT',
+        reason: 'Elevated risk detected (74%). Monitoring with increased sensitivity.',
+        shouldTrigger: false
+      }
+
+      at SOSLogger.info [as log] (src/AI_Voice_SOS_Module/utils/logger.ts:203:19)
+
+    console.debug
+      [SOS:DEBUG][DecisionEngine] DecisionEngine initialized {
+        weights: {
+          keyword: 0.15,
+          emotion: 0.3,
+          sound: 0.2,
+          motion: 0.1,
+          location: 0.15,
+          time: 0.1
+        }
+      }
+
+      at SOSLogger.debug [as log] (src/AI_Voice_SOS_Module/utils/logger.ts:200:19)
+
+    console.info
+      [SOS:INFO][DecisionEngine] Evaluating signals {
+        keywordScore: 100,
+        emotionScore: 10,
+        soundScore: 10,
+        motionScore: 90,
+        locationScore: 90,
+        timeScore: 90,
+        detectedKeyword: 'emergency'
+      }
+
+      at SOSLogger.info [as log] (src/AI_Voice_SOS_Module/utils/logger.ts:203:19)
+
+    console.info
+      [SOS:INFO][DecisionEngine] Safeguard: keyword-only detection capped
+
+      at SOSLogger.info [as log] (src/AI_Voice_SOS_Module/utils/logger.ts:203:19)
+
+    console.info
+      [SOS:INFO][DecisionEngine] Decision made {
+        confidenceScore: 52,
+        status: 'MONITORING',
+        reason: 'Risk level within normal range (52%). Continuing monitoring.',
+        shouldTrigger: false
+      }
+
+      at SOSLogger.info [as log] (src/AI_Voice_SOS_Module/utils/logger.ts:203:19)
+
+
+Test Suites: 2 failed, 3 passed, 5 total
+Tests:       3 failed, 15 passed, 18 total
+Snapshots:   0 total
+Time:        1.766 s
+Ran all test suites matching /src\\AI_Voice_SOS_Module\\tests\\/i.

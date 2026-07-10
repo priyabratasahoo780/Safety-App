@@ -5,8 +5,8 @@ import {
   Text,
   TouchableOpacity,
   ScrollView,
-  SafeAreaView,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { Image } from 'expo-image';
 import { StatusBar } from 'expo-status-bar';
 import { useRouter } from 'expo-router';
@@ -17,7 +17,7 @@ export default function CompleteScreen() {
 
   const handleGoHome = () => {
     // Navigate to the main app dashboard
-    router.replace('/(tabs)/home');
+    router.replace('/(drawer)/(tabs)/home');
   };
 
   return (
@@ -370,3 +370,4 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
 });
+

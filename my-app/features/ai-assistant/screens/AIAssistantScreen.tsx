@@ -1,8 +1,9 @@
 import React, { useRef, useState } from 'react';
 import { 
   View, Text, StyleSheet, FlatList, KeyboardAvoidingView, Platform, 
-  TouchableOpacity, SafeAreaView, Modal, Alert 
+  TouchableOpacity, Modal, Alert 
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { ArrowLeft, History, MoreVertical } from 'lucide-react-native';
 

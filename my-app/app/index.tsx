@@ -5,9 +5,9 @@ import {
   Text,
   TouchableOpacity,
   ScrollView,
-  SafeAreaView,
   Dimensions,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { Image } from 'expo-image';
 import { StatusBar } from 'expo-status-bar';
 import { useRouter } from 'expo-router';
@@ -19,7 +19,7 @@ export default function OnboardingScreen() {
   const router = useRouter();
 
   return (
-    <SafeAreaView style={styles.container}>
+    <SafeAreaView style={styles.container} edges={['top', 'bottom']}>
       <StatusBar style="dark" />
       
       {/* Top Header Row */}
@@ -134,6 +134,14 @@ export default function OnboardingScreen() {
             <Text style={styles.loginLink}>Log In</Text>
           </TouchableOpacity>
         </View>
+
+        {/* AI Voice Engine Debug */}
+        <TouchableOpacity 
+          style={{ marginTop: 20, alignItems: 'center' }} 
+          onPress={() => router.push('/test-ai-voice')}
+        >
+          <Text style={{ color: '#0E9F6E', fontWeight: 'bold' }}>Test AI Voice Engine (Debug)</Text>
+        </TouchableOpacity>
       </ScrollView>
     </SafeAreaView>
   );
@@ -290,3 +298,4 @@ const styles = StyleSheet.create({
     fontWeight: '700',
   },
 });
+

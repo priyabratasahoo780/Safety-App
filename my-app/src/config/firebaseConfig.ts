@@ -1,12 +1,16 @@
 import { initializeApp, getApp, getApps } from "firebase/app";
 import { 
   initializeAuth, 
+  getAuth,
+  // @ts-ignore
   getReactNativePersistence,
   EmailAuthProvider,
   GoogleAuthProvider,
   PhoneAuthProvider
 } from "firebase/auth";
 import { getFirestore } from "firebase/firestore";
+import { Platform } from "react-native";
+import { getStorage } from "firebase/storage";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 
 // Your Firebase Web configuration fetched from your project
@@ -23,18 +27,24 @@ const firebaseConfig = {
 // Initialize Firebase App only once
 const app = !getApps().length ? initializeApp(firebaseConfig) : getApp();
 
-// Initialize Auth with AsyncStorage persistence for React Native
-const auth = initializeAuth(app, {
-  persistence: getReactNativePersistence(AsyncStorage)
-});
+// Initialize Auth with platform-specific persistence
+let auth: any;
+if (Platform.OS === 'web') {
+  auth = getAuth(app);
+} else {
+  auth = initializeAuth(app, {
+    persistence: getReactNativePersistence(AsyncStorage)
+  });
+}
 
 // Auth Providers (Email, Google, Phone are supported by Firebase Auth)
 const emailProvider = new EmailAuthProvider();
 const googleProvider = new GoogleAuthProvider();
-const phoneProvider = new PhoneAuthProvider(auth);
+const phoneProvider = typeof window !== 'undefined' || Platform.OS !== 'web' ? new PhoneAuthProvider(auth) : null;
 
-// Initialize Cloud Firestore
+// Initialize Cloud Firestore and Storage
 const db = getFirestore(app);
+const storage = getStorage(app);
 
 // Centralized Google OAuth Client ID for Expo Auth Session
 const GOOGLE_CLIENT_IDS = {
@@ -46,6 +56,7 @@ export {
   app, 
   auth, 
   db,
+  storage,
   emailProvider,
   googleProvider,
   phoneProvider,

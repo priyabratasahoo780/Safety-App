@@ -6,12 +6,12 @@ import {
   TextInput,
   TouchableOpacity,
   ScrollView,
-  SafeAreaView,
   KeyboardAvoidingView,
   Platform,
   Alert,
   ActivityIndicator,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { Image } from 'expo-image';
 import { StatusBar } from 'expo-status-bar';
 import { useRouter } from 'expo-router';
@@ -40,7 +40,7 @@ export default function SignInScreen() {
     setLoading(true);
     try {
       await authService.login(email, password);
-      router.replace('/(tabs)/home');
+      router.replace('/(drawer)/(tabs)/home');
     } catch (error: any) {
       Alert.alert('Login Failed', error.message);
     } finally {
@@ -71,7 +71,7 @@ export default function SignInScreen() {
     if (response?.type === 'success') {
       const { id_token } = response.params;
       authService.loginWithGoogleCredential(id_token).then(() => {
-        router.replace('/(tabs)/home');
+        router.replace('/(drawer)/(tabs)/home');
       }).catch(error => {
         Alert.alert('Google Sign-In Error', error.message);
       });
@@ -460,3 +460,4 @@ const styles = StyleSheet.create({
     lineHeight: 18,
   },
 });
+

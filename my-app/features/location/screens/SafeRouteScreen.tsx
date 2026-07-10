@@ -1,5 +1,6 @@
 import React, { useState, useRef, useCallback } from 'react';
-import { View, Text, StyleSheet, ScrollView, Pressable, Alert, SafeAreaView } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, Pressable, Alert } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
 import { ArrowLeft, History, Navigation as NavIcon, Shield } from 'lucide-react-native';
 import { LinearGradient } from 'expo-linear-gradient';

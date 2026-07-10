@@ -1,10 +1,10 @@
 import React, { useState, useEffect } from 'react';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import {
   StyleSheet,
   View,
   Text,
   TouchableOpacity,
-  SafeAreaView,
   ScrollView,
   Dimensions,
 } from 'react-native';
@@ -47,7 +47,7 @@ export default function ActiveJourneyScreen() {
 
   const handleArrival = () => {
     setJourneyComplete(true);
-    router.replace('/(tabs)/home');
+    router.replace('/(drawer)/(tabs)/home');
   };
 
   return (

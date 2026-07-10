@@ -12,22 +12,15 @@ export function QuickActionChips({ onSelectPrompt, onOpenMore }: Props) {
   const router = useRouter();
 
   const handleNearbySafePlaces = () => {
-    // If the location page exists, route to it. Otherwise send prompt.
-    try {
-      router.push('/location');
-    } catch {
-      onSelectPrompt('How can I identify a safer nearby public place?');
-    }
+    // Instead of navigating to a missing /location route which crashes the app,
+    // we directly send the prompt.
+    onSelectPrompt('How can I identify a safer nearby public place?');
   };
 
   const handleFakeCall = () => {
-    // If Fake Call feature exists, route. We assume it might not exist yet.
-    try {
-      // Trying to navigate to a standard fake-call route if it exists
-      router.push('/fake-call' as any);
-    } catch {
-      alert('Fake Call feature will be available soon.');
-    }
+    // Instead of navigating to a missing /fake-call route,
+    // we show an alert.
+    alert('Fake Call feature will be available soon.');
   };
 
   return (

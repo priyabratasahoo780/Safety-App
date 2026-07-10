@@ -4,13 +4,24 @@ import {
   View,
   Text,
   TouchableOpacity,
-  SafeAreaView,
   TextInput,
   Dimensions,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { useRouter } from 'expo-router';
 import { Feather, MaterialCommunityIcons } from '@expo/vector-icons';
+import { Platform, Linking } from 'react-native';
+
+import { EmergencyService } from '../../features/emergency/services/emergency.service';
+import { FirebaseEmergencyRepository } from '../../features/emergency/repositories/FirebaseEmergencyRepository';
+import { FirebaseStorageService } from '../../features/emergency/repositories/FirebaseStorageService';
+import { AudioEvidenceService } from '../../features/voice-sos/services/evidence.service';
+import { FirebaseGuardianRepository } from '../../features/guardian/repositories/FirebaseGuardianRepository';
+import { MockNotificationService } from '../../features/guardian/services/MockNotificationService';
+import { EmergencyStatus, NetworkStatus } from '../../features/emergency/types/emergency.types';
+import { SupportedLanguage } from '../../features/voice-sos/types/voice.types';
+import { authService } from '../../src/services/authService';
 
 const { width } = Dimensions.get('window');
 
@@ -30,8 +41,74 @@ export default function ActiveSosScreen() {
       return () => clearTimeout(timer);
     } else if (countdown === 0 && !sosFired) {
       setSosFired(true);
+      triggerManualSOS();
     }
   }, [countdown, sosFired]);
+
+  const triggerManualSOS = async () => {
+    try {
+      const emergencyService = new EmergencyService({
+        emergencyRepo: new FirebaseEmergencyRepository(),
+        storageService: new FirebaseStorageService(),
+        evidenceService: new AudioEvidenceService(),
+        guardianRepo: new FirebaseGuardianRepository(),
+        notificationService: new MockNotificationService(),
+        whatsAppService: {
+          sendWhatsAppAlert: async (phones: string[], event: any) => {
+            if (!phones || phones.length === 0) return;
+            const profile = await authService.getUserProfile();
+            const userName = profile?.name ? profile.name.toUpperCase() : 'YOUR LOVED ONE';
+            const timeStr = new Date().toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' });
+            const locStr = event.location ? `${event.location.latitude},${event.location.longitude}` : 'Unknown';
+            const mapLink = event.location ? `https://maps.google.com/?q=${locStr}` : 'Location unavailable';
+            let msg = `🚨 EMERGENCY ALERT FROM ${userName} 🚨\n\nI need help immediately! My live location and safety details are being shared with you.\n\n📍 *Location*: ${mapLink}\n⏰ *Time*: ${timeStr}\n🔋 *Battery*: ${event.battery !== undefined ? event.battery + '%' : 'Unknown'}\n📶 *Network*: ${event.network || 'Unknown'}\n⚠️ *Triggered By*: SafeSphere Manual SOS\n\nPlease contact me or the authorities immediately!`;
+            if (event.customMessage) msg = event.customMessage;
+            
+            const phone = phones[0].replace(/[^0-9]/g, '');
+            if (!phone) return;
+            const url = `https://wa.me/${phone}?text=${encodeURIComponent(msg)}`;
+            try { await Linking.openURL(url); } catch(e) {}
+          }
+        },
+        smsService: {
+          sendOfflineSMS: async (phones: string[], event: any) => {
+            if (!phones || phones.length === 0) return;
+            const validPhones = phones.map(p => p.replace(/[^0-9]/g, '')).filter(p => p.length > 0);
+            if (validPhones.length === 0) return;
+            
+            const profile = await authService.getUserProfile();
+            const userName = profile?.name ? profile.name.toUpperCase() : 'YOUR LOVED ONE';
+            const timeStr = new Date().toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' });
+            const locStr = event.location ? `${event.location.latitude},${event.location.longitude}` : 'Unknown';
+            const mapLink = event.location ? `https://maps.google.com/?q=${locStr}` : 'Location unavailable';
+            let msg = `🚨 EMERGENCY ALERT FROM ${userName} 🚨\nHelp needed! Location: ${mapLink}\nTime: ${timeStr}\nBattery: ${event.battery !== undefined ? event.battery + '%' : 'Unknown'}\nTriggered By: SafeSphere Manual SOS`;
+            if (event.customMessage) msg = event.customMessage;
+            
+            if (Platform.OS === 'web') return;
+            const phoneList = Platform.OS === 'ios' ? validPhones.join(',') : validPhones.join(';');
+            const url = `sms:${phoneList}?body=${encodeURIComponent(msg)}`;
+            try { await Linking.openURL(url); } catch(e) {}
+          }
+        },
+        emergencyCallingService: { triggerAutomatedCall: async () => {} }
+      });
+
+      await emergencyService.triggerEmergency({
+        decision: { shouldTrigger: true, confidenceScore: 100, status: EmergencyStatus.EMERGENCY, reason: 'Manual SOS Button Pressed', timestamp: Date.now(), signals: {} as any, weights: {} as any },
+        emotionBreakdown: [],
+        soundBreakdown: [],
+        location: null, // Should ideally fetch live location
+        battery: 100,
+        network: NetworkStatus.ONLINE,
+        keyword: 'MANUAL_SOS',
+        speechText: 'Manual SOS triggered via UI button',
+        language: SupportedLanguage.EN_US,
+        timeline: [],
+      });
+    } catch (e) {
+      console.log('Error triggering manual SOS:', e);
+    }
+  };
 
   // Simulated audio waveform jitter
   useEffect(() => {
@@ -43,7 +120,7 @@ export default function ActiveSosScreen() {
 
   const handleCancel = () => {
     // Return back to dashboard
-    router.replace('/(tabs)/home');
+    router.replace('/(drawer)/(tabs)/home');
   };
 
   return (
@@ -396,3 +473,4 @@ const styles = StyleSheet.create({
     fontSize: 16,
   },
 });
+
