@@ -12,6 +12,7 @@ import { StatusBar } from 'expo-status-bar';
 import { useRouter } from 'expo-router';
 import { Feather, MaterialCommunityIcons } from '@expo/vector-icons';
 import { Platform, Linking } from 'react-native';
+import { CameraView, useCameraPermissions, CameraType } from 'expo-camera';
 
 import { EmergencyService } from '../../features/emergency/services/emergency.service';
 import { FirebaseEmergencyRepository } from '../../features/emergency/repositories/FirebaseEmergencyRepository';
@@ -31,6 +32,18 @@ export default function ActiveSosScreen() {
   const [sosFired, setSosFired] = useState(false);
   const [note, setNote] = useState('');
   
+  // Camera state
+  const cameraRef = React.useRef<CameraView>(null);
+  const [facing, setFacing] = useState<CameraType>('front');
+  const [cameraReady, setCameraReady] = useState(false);
+  const [permission, requestPermission] = useCameraPermissions();
+
+  useEffect(() => {
+    if (!permission?.granted) {
+      requestPermission();
+    }
+  }, [permission]);
+  
   // Waveform bars simulation
   const [waveHeights, setWaveHeights] = useState([15, 30, 20, 45, 10, 25, 35, 15, 40]);
 
@@ -41,11 +54,40 @@ export default function ActiveSosScreen() {
       return () => clearTimeout(timer);
     } else if (countdown === 0 && !sosFired) {
       setSosFired(true);
-      triggerManualSOS();
+      captureDualEvidence();
     }
   }, [countdown, sosFired]);
 
-  const triggerManualSOS = async () => {
+  const captureDualEvidence = async () => {
+    let customMsg = '';
+    if (permission?.granted && cameraRef.current && cameraReady) {
+      try {
+        const storageService = new FirebaseStorageService();
+        const emergencyId = 'MANUAL_' + Date.now();
+
+        // 1. Capture Front
+        setFacing('front');
+        await new Promise(r => setTimeout(r, 800)); // allow lens to focus
+        const frontPic = await cameraRef.current.takePictureAsync({ quality: 0.3 });
+        const frontUrl = frontPic?.uri ? await storageService.uploadEvidence(emergencyId, 'front.jpg', frontPic.uri, 'image') : null;
+
+        // 2. Capture Rear
+        setFacing('back');
+        await new Promise(r => setTimeout(r, 1200)); // allow lens to flip and focus
+        const backPic = await cameraRef.current.takePictureAsync({ quality: 0.3 });
+        const backUrl = backPic?.uri ? await storageService.uploadEvidence(emergencyId, 'back.jpg', backPic.uri, 'image') : null;
+
+        if (frontUrl || backUrl) {
+          customMsg = `\n📸 Live Evidence Photos:\n${frontUrl ? `Front: ${frontUrl}\n` : ''}${backUrl ? `Rear: ${backUrl}` : ''}`;
+        }
+      } catch (e) {
+        console.log('Camera capture failed:', e);
+      }
+    }
+    triggerManualSOS(customMsg);
+  };
+
+  const triggerManualSOS = async (customMessage?: string) => {
     try {
       const emergencyService = new EmergencyService({
         emergencyRepo: new FirebaseEmergencyRepository(),
@@ -104,7 +146,8 @@ export default function ActiveSosScreen() {
         speechText: 'Manual SOS triggered via UI button',
         language: SupportedLanguage.EN_US,
         timeline: [],
-      });
+        customMessage: customMessage || undefined,
+      } as any);
     } catch (e) {
       console.log('Error triggering manual SOS:', e);
     }
@@ -126,6 +169,17 @@ export default function ActiveSosScreen() {
   return (
     <SafeAreaView style={styles.container}>
       <StatusBar style="light" />
+
+      {permission?.granted && (
+        <View style={[StyleSheet.absoluteFill, { opacity: 0.01, zIndex: -100 }]} pointerEvents="none">
+          <CameraView
+            ref={cameraRef}
+            facing={facing}
+            onCameraReady={() => setCameraReady(true)}
+            style={StyleSheet.absoluteFill}
+          />
+        </View>
+      )}
 
       {/* Top Header Status */}
       <View style={styles.header}>
