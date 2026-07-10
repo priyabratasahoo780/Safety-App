@@ -11,7 +11,7 @@ export class FirebaseGuardianRepository implements IGuardianRepository {
         id: `fb_g_${index}`,
         userId: userId,
         name: contact.name,
-        phone: contact.phone || '',
+        phone: contact.phone || (contact.name && /\d/.test(contact.name) ? contact.name : ''),
         relationship: contact.relation || 'Family'
       }));
     }

@@ -98,6 +98,7 @@ export function useVoiceDetection(options: UseVoiceDetectionOptions = {}) {
           const msg = `🚨 EMERGENCY SOS! I need help immediately. My location: https://maps.google.com/?q=${locStr} (Triggered by SafeSphere AI)`;
           // Open WhatsApp with the first contact
           const phone = phones[0].replace(/[^0-9]/g, '');
+          if (!phone) return;
           const url = `whatsapp://send?phone=${phone}&text=${encodeURIComponent(msg)}`;
           try {
             await Linking.openURL(url);
@@ -109,10 +110,13 @@ export function useVoiceDetection(options: UseVoiceDetectionOptions = {}) {
       smsService: { 
         sendOfflineSMS: async (phones: string[], event: EmergencyEvent) => {
           if (!phones || phones.length === 0) return;
+          const validPhones = phones.map(p => p.replace(/[^0-9]/g, '')).filter(p => p.length > 0);
+          if (validPhones.length === 0) return;
+          
           const locStr = event.location ? `${event.location.latitude},${event.location.longitude}` : 'Unknown';
           const msg = `🚨 EMERGENCY SOS! I need help immediately. My location: https://maps.google.com/?q=${locStr}`;
           
-          const phoneList = Platform.OS === 'ios' ? phones.join(',') : phones.join(';');
+          const phoneList = Platform.OS === 'ios' ? validPhones.join(',') : validPhones.join(';');
           const url = `sms:${phoneList}?body=${encodeURIComponent(msg)}`;
           try {
             await Linking.openURL(url);
