@@ -1,168 +1,178 @@
-import { Tabs, useRouter } from 'expo-router';
+import { Tabs } from 'expo-router';
 import React from 'react';
-import { StyleSheet, View, Text, TouchableOpacity, Platform, DeviceEventEmitter } from 'react-native';
-import { Feather, MaterialCommunityIcons } from '@expo/vector-icons';
-import { useVoiceDetection } from '../../../features/voice-sos/hooks/useVoiceDetection';
+import {
+    View,
+    Text,
+    TouchableOpacity,
+    StyleSheet,
+    Platform,
+} from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { Home, Navigation, AlertCircle } from 'lucide-react-native';
+import type { BottomTabBarProps } from '@react-navigation/bottom-tabs';
 
-export default function TabLayout() {
-  const router = useRouter();
+// ─── Custom Tab Bar ───────────────────────────────────────────────────────────
+function CustomTabBar({ state, descriptors, navigation }: BottomTabBarProps) {
+    const insets = useSafeAreaInsets();
 
-  // Globally initialize Voice/Sound SOS detection
-  const { isEmergency, resolveEmergency, stop } = useVoiceDetection({ autoStart: true });
+    // bottom padding = system gesture bar height + 12px breathing room
+    const bottomPad = insets.bottom + 12;
 
-  React.useEffect(() => {
-    if (isEmergency) {
-      router.push('/sos/active');
-    }
-  }, [isEmergency]);
+    return (
+        <View style={[styles.tabBarWrapper, { bottom: bottomPad }]}>
+            <View style={styles.capsule}>
+                {state.routes.map((route, index) => {
+                    const { options } = descriptors[route.key];
+                    const isFocused = state.index === index;
+                    const isSOS = route.name === 'sos-placeholder';
 
-  React.useEffect(() => {
-    const sub = DeviceEventEmitter.addListener('stop_sos', () => {
-      if (resolveEmergency) resolveEmergency();
-      if (stop) stop();
-    });
-    return () => sub.remove();
-  }, [resolveEmergency, stop]);
+                    const onPress = () => {
+                        const event = navigation.emit({
+                            type: 'tabPress',
+                            target: route.key,
+                            canPreventDefault: true,
+                        });
+                        if (!isFocused && !event.defaultPrevented) {
+                            navigation.navigate(route.name);
+                        }
+                    };
 
-  return (
-    <Tabs
-      screenOptions={{
-        tabBarActiveTintColor: '#A78BFA', // bright violet-400 for dark mode tab bar contrast
-        tabBarInactiveTintColor: '#9CA3AF',
-        tabBarStyle: styles.tabBar,
-        headerShown: false,
-        tabBarShowLabel: true,
-        tabBarLabelStyle: styles.tabBarLabel,
-      }}
-    >
-      <Tabs.Screen
-        name="home/index"
-        options={{
-          title: 'Home',
-          tabBarIcon: ({ color, focused }) => (
-            <Feather name="home" size={22} color={color} style={focused && styles.activeIconGlow} />
-          ),
-        }}
-      />
+                    // ── SOS centre button ──────────────────────────────────────────────
+                    if (isSOS) {
+                        return (
+                            <TouchableOpacity
+                                key={route.key}
+                                onPress={onPress}
+                                style={styles.sosWrapper}
+                                activeOpacity={0.85}
+                            >
+                                <View style={styles.sosButton}>
+                                    <AlertCircle size={26} color="#FFFFFF" strokeWidth={2.5} />
+                                </View>
+                                <Text style={styles.sosLabel}>SOS</Text>
+                            </TouchableOpacity>
+                        );
+                    }
 
-      {/* Custom Elevated Center SOS Button */}
-      <Tabs.Screen
-        name="sos-placeholder"
-        options={{
-          title: 'SOS',
-          tabBarLabelStyle: [styles.tabBarLabel, { color: '#DC2626', fontWeight: '800' }],
-          tabBarButton: (props) => {
-            const { style, delayLongPress, ...restProps } = props as any;
-            return (
-              <TouchableOpacity
-                {...restProps}
-                style={[style, styles.sosButtonContainer]}
-                activeOpacity={0.8}
-                onPress={() => router.push('/sos/active')}
-              >
-                <View style={styles.sosInnerButton}>
-                  <MaterialCommunityIcons name="alert-decagram" size={26} color="#FFFFFF" />
-                </View>
-                <Text style={styles.sosLabel}>SOS</Text>
-              </TouchableOpacity>
-            );
-          },
-        }}
-      />
+                    // ── Regular tab ───────────────────────────────────────────────────
+                    const label =
+                        route.name === 'home'
+                            ? 'Home'
+                            : route.name === 'navigate'
+                                ? 'Navigate'
+                                : route.name;
 
+                    const Icon =
+                        route.name === 'home'
+                            ? Home
+                            : Navigation;
 
-      <Tabs.Screen
-        name="navigate/index"
-        options={{
-          title: 'Navigate',
-          tabBarIcon: ({ color, focused }) => (
-            <Feather name="navigation" size={22} color={color} style={focused && styles.activeIconGlow} />
-          ),
-        }}
-      />
-
-      {/* Hidden tab button but keeps the bottom navbar visible when on this screen */}
-      <Tabs.Screen
-        name="safety-analysis"
-        options={{
-          href: null,
-          tabBarStyle: { display: 'none' }, // optional but helps
-        }}
-      />
-      <Tabs.Screen
-        name="live-tracking"
-        options={{
-          href: null,
-        }}
-      />
-
-      {/* Hide ghost tabs that linger if the Metro cache hasn't been reset yet */}
-      <Tabs.Screen name="ai-assistant" options={{ href: null }} />
-      <Tabs.Screen name="community" options={{ href: null }} />
-      <Tabs.Screen name="profile" options={{ href: null }} />
-      <Tabs.Screen name="ai-assistant/index" options={{ href: null }} />
-      <Tabs.Screen name="community/index" options={{ href: null }} />
-      <Tabs.Screen name="profile/index" options={{ href: null }} />
-    </Tabs>
-  );
+                    return (
+                        <TouchableOpacity
+                            key={route.key}
+                            onPress={onPress}
+                            style={styles.tab}
+                            activeOpacity={0.75}
+                        >
+                            <Icon
+                                size={22}
+                                color={isFocused ? '#A78BFA' : '#6B7280'}
+                                strokeWidth={isFocused ? 2.5 : 1.8}
+                            />
+                            <Text style={[styles.label, isFocused && styles.labelActive]}>
+                                {label}
+                            </Text>
+                        </TouchableOpacity>
+                    );
+                })}
+            </View>
+        </View>
+    );
 }
 
+// ─── Layout ───────────────────────────────────────────────────────────────────
+export default function TabsLayout() {
+    return (
+        <Tabs
+            tabBar={(props) => <CustomTabBar {...props} />}
+            screenOptions={{ headerShown: false }}
+        >
+            <Tabs.Screen name="home" />
+            <Tabs.Screen name="sos-placeholder" />
+            <Tabs.Screen name="navigate" />
+            {/* Hidden from tab bar */}
+            <Tabs.Screen name="live-tracking" options={{ href: null }} />
+            <Tabs.Screen name="safety-analysis" options={{ href: null }} />
+        </Tabs>
+    );
+}
+
+// ─── Styles ───────────────────────────────────────────────────────────────────
 const styles = StyleSheet.create({
-  tabBar: {
-    height: 64,
-    position: 'absolute',
-    bottom: Platform.OS === 'ios' ? 24 : 16,
-    left: 16,
-    right: 16,
-    borderRadius: 32,
-    borderWidth: 1,
-    borderColor: '#1E293B',
-    backgroundColor: '#0A0D1A', // premium dark navy/black
-    paddingBottom: 4,
-    paddingTop: 4,
-    shadowColor: '#000000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.15,
-    shadowRadius: 12,
-    elevation: 8,
-  },
-  tabBarLabel: {
-    fontSize: 11,
-    fontWeight: '600',
-    marginTop: 2,
-  },
-  activeIconGlow: {
-    // Subtle design glow for active icon
-    shadowColor: '#A78BFA',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.25,
-    shadowRadius: 4,
-  },
-  sosButtonContainer: {
-    height: '100%',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  sosInnerButton: {
-    position: 'absolute',
-    top: -20,
-    width: 50,
-    height: 50,
-    borderRadius: 25,
-    backgroundColor: '#DC2626', // safety.danger (red)
-    justifyContent: 'center',
-    alignItems: 'center',
-    shadowColor: '#DC2626',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
-    elevation: 6,
-  },
-  sosLabel: {
-    position: 'absolute',
-    bottom: 6,
-    fontSize: 11,
-    fontWeight: '800',
-    color: '#DC2626',
-  },
+    tabBarWrapper: {
+        position: 'absolute',
+        left: 20,
+        right: 20,
+        alignItems: 'center',
+        // lift above system nav bar — bottom is set dynamically via insets
+    },
+    capsule: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        backgroundColor: '#0A0D1A',
+        borderRadius: 40,
+        paddingHorizontal: 16,
+        paddingVertical: 10,
+        width: '100%',
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 6 },
+        shadowOpacity: 0.35,
+        shadowRadius: 14,
+        elevation: 16,
+    },
+    tab: {
+        flex: 1,
+        alignItems: 'center',
+        justifyContent: 'center',
+        gap: 3,
+    },
+    label: {
+        fontSize: 11,
+        fontWeight: '500',
+        color: '#6B7280',
+        marginTop: 2,
+    },
+    labelActive: {
+        color: '#A78BFA',
+        fontWeight: '700',
+    },
+    // SOS floating centre button
+    sosWrapper: {
+        flex: 1,
+        alignItems: 'center',
+        justifyContent: 'center',
+        marginTop: -28,       // lifts above the capsule
+    },
+    sosButton: {
+        width: 58,
+        height: 58,
+        borderRadius: 29,
+        backgroundColor: '#E53E3E',
+        alignItems: 'center',
+        justifyContent: 'center',
+        borderWidth: 3,
+        borderColor: '#0A0D1A',
+        shadowColor: '#E53E3E',
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.6,
+        shadowRadius: 10,
+        elevation: 14,
+    },
+    sosLabel: {
+        fontSize: 10,
+        fontWeight: '700',
+        color: '#E53E3E',
+        marginTop: 3,
+        letterSpacing: 0.5,
+    },
 });
