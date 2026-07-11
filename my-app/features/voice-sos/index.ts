@@ -15,6 +15,7 @@ export * from './services/emotion.service';
 export * from './services/sound.service';
 export * from './services/risk.service';
 export * from './services/decision.service';
+export * from './services/geminiVoice.service';
 export * from '../emergency/services/emergency.service';
 
 // Export Hooks (Primary interface for React Native app)

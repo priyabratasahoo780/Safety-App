@@ -137,7 +137,7 @@ export default function LiveTrackingScreen() {
             <Text style={styles.bannerTitle}>Sharing your live location</Text>
             <Text style={styles.bannerDesc}>Your trusted contacts can see your location in real time.</Text>
           </View>
-          <TouchableOpacity style={styles.stopBtn} onPress={() => router.push('/(drawer)/(tabs)')}>
+          <TouchableOpacity style={styles.stopBtn} onPress={() => router.push('/(drawer)/(tabs)/home')}>
             <Text style={styles.stopBtnText}>Stop Sharing</Text>
           </TouchableOpacity>
         </View>

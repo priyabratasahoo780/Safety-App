@@ -24,6 +24,49 @@ const verifyToken = (req, res, next) => {
   next();
 };
 
+/** Provider: CallMeBot (Free WhatsApp) */
+async function sendCallMeBotWhatsApp(phone, message) {
+  const apikey = process.env.CALLMEBOT_API_KEY;
+  if (!apikey) throw new Error('CallMeBot API key not configured');
+
+  const toClean = phone.replace(/[^0-9]/g, '');
+  const toCleanInternational = toClean.startsWith('91') ? toClean : '91' + toClean.slice(-10);
+
+  const resp = await axios.get('https://api.callmebot.com/whatsapp.php', {
+    params: {
+      phone: toCleanInternational,
+      text: message,
+      apikey: apikey
+    }
+  });
+
+  console.log(`[CallMeBot] Response for ${toCleanInternational}:`, resp.data);
+  return resp.data;
+}
+
+/** Provider: Telegram Bot (100% Free and Instant) */
+async function sendTelegramAlerts(message) {
+  const token = process.env.TELEGRAM_BOT_TOKEN;
+  const chatIdsStr = process.env.TELEGRAM_CHAT_IDS;
+  if (!token || !chatIdsStr) {
+    console.log('[Telegram] Bot token or chat IDs not configured, skipping Telegram broadcast.');
+    return;
+  }
+
+  const chatIds = chatIdsStr.split(',').map(id => id.trim());
+  for (const chatId of chatIds) {
+    try {
+      await axios.post(`https://api.telegram.org/bot${token}/sendMessage`, {
+        chat_id: chatId,
+        text: message
+      });
+      console.log(`[Telegram] ✅ Alert sent to chatId: ${chatId}`);
+    } catch (e) {
+      console.log(`[Telegram] ❌ Failed to send to chatId: ${chatId}:`, e.message);
+    }
+  }
+}
+
 // ─── SMS Providers ────────────────────────────────────────────────────────────
 
 /** Provider 1: Vonage (free €2 credit on signup) */
@@ -127,26 +170,49 @@ app.post('/api/emergency/dispatch', verifyToken, async (req, res) => {
     console.log(`📝 Message: ${msg.substring(0, 100)}...`);
     console.log(`📡 Type: ${req.body.type}`);
 
+    // Broadcast to Telegram as a 100% free and instant channel if configured
+    sendTelegramAlerts(msg).catch(e => console.log('[Telegram] dispatch error:', e.message));
+
     let results = [];
 
     if (req.body.type === 'whatsapp') {
-      // 🟢 TWILIO WHATSAPP
-      const twilio = require('twilio')(TWILIO_SID, TWILIO_TOKEN);
-      const TWILIO_WHATSAPP_NUMBER = process.env.TWILIO_WHATSAPP_NUMBER || 'whatsapp:+14155238886';
       for (const phone of phones) {
-        const toClean = phone.replace(/[^0-9]/g, '');
-        const toE164 = toClean.startsWith('91') ? '+' + toClean : '+91' + toClean.slice(-10);
-        try {
-          const resp = await twilio.messages.create({
-            body: msg,
-            from: TWILIO_WHATSAPP_NUMBER,
-            to: `whatsapp:${toE164}`
-          });
-          console.log(`[WhatsApp] ✅ Sent to ${toE164}. SID: ${resp.sid}`);
-          results.push({ phone, status: 'whatsapp_success' });
-        } catch (e) {
-          console.log(`[WhatsApp] ❌ Failed for ${toE164}:`, e.message);
-          results.push({ phone, status: 'failed', error: e.message });
+        let sent = false;
+
+        // Try CallMeBot free WhatsApp first
+        if (process.env.CALLMEBOT_API_KEY) {
+          try {
+            await sendCallMeBotWhatsApp(phone, msg);
+            results.push({ phone, status: 'whatsapp_callmebot_success' });
+            sent = true;
+          } catch (e) {
+            console.log(`[CallMeBot] Failed for ${phone}:`, e.message);
+          }
+        }
+
+        // Try Twilio WhatsApp if CallMeBot not configured or failed
+        if (!sent && TWILIO_SID && TWILIO_TOKEN) {
+          const twilio = require('twilio')(TWILIO_SID, TWILIO_TOKEN);
+          const TWILIO_WHATSAPP_NUMBER = process.env.TWILIO_WHATSAPP_NUMBER || 'whatsapp:+14155238886';
+          const toClean = phone.replace(/[^0-9]/g, '');
+          const toE164 = toClean.startsWith('91') ? '+' + toClean : '+91' + toClean.slice(-10);
+          try {
+            const resp = await twilio.messages.create({
+              body: msg,
+              from: TWILIO_WHATSAPP_NUMBER,
+              to: `whatsapp:${toE164}`
+            });
+            console.log(`[WhatsApp] ✅ Sent to ${toE164}. SID: ${resp.sid}`);
+            results.push({ phone, status: 'whatsapp_success' });
+            sent = true;
+          } catch (e) {
+            console.log(`[WhatsApp] ❌ Failed for ${toE164}:`, e.message);
+            results.push({ phone, status: 'failed', error: e.message });
+          }
+        }
+
+        if (!sent) {
+          results.push({ phone, status: 'failed', error: 'No WhatsApp provider available or succeeded' });
         }
       }
     } else {

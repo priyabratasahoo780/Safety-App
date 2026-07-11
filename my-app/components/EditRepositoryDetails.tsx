@@ -236,7 +236,7 @@ const styles = StyleSheet.create({
       web: {
         outlineStyle: 'none',
         boxShadow: '0 0 0 3px rgba(47, 129, 247, 0.3)',
-      },
+      } as any,
     }),
   },
   checkboxGroup: {

@@ -39,7 +39,11 @@ export default function ActiveSosScreen() {
 
   // Trigger immediately on mount (No timer)
   useEffect(() => {
-    if (!sosFired) {
+    const current = ServiceLocator.getInstance().emergency.getCurrentEmergency();
+    if (current && current.status === EmergencyStatus.EMERGENCY) {
+      setSosFired(true);
+      // Already triggered!
+    } else if (!sosFired) {
       setSosFired(true);
       triggerManualSOS();
     }

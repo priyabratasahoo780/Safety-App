@@ -309,6 +309,34 @@ export default function HomeScreen() {
     }, [])
   );
 
+  useEffect(() => {
+    const manageVoiceService = async () => {
+      try {
+        const { GeminiVoiceService } = require('@/features/voice-sos/services/geminiVoice.service');
+        const voiceService = GeminiVoiceService.getInstance();
+        
+        if (userProfile?.safetyPreferences?.aiVoiceSos) {
+          console.log('[Home] Starting Gemini Voice Command bot based on safetyPreferences...');
+          await voiceService.startListening();
+        } else {
+          console.log('[Home] Stopping Gemini Voice Command bot (disabled in safetyPreferences)...');
+          await voiceService.stopListening();
+        }
+      } catch (err) {
+        console.warn('Failed to manage Gemini Voice Service:', err);
+      }
+    };
+
+    manageVoiceService();
+    
+    return () => {
+      try {
+        const { GeminiVoiceService } = require('@/features/voice-sos/services/geminiVoice.service');
+        GeminiVoiceService.getInstance().stopListening();
+      } catch (e) {}
+    };
+  }, [userProfile]);
+
   const [safetyScores, setSafetyScores] = useState({
     overall: 78,
     lifestyle: 75,

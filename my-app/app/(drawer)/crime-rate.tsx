@@ -101,7 +101,7 @@ export default function CrimeRateScreen() {
         if (totalScore > 35) riskLevel = 'Moderate';
         if (totalScore > 70) riskLevel = 'High';
 
-        const dynamicIncidents = [];
+        const dynamicIncidents: any[] = [];
         if (harassmentCount > 0) dynamicIncidents.push({ type: 'Harassment', count: harassmentCount, trend: 'up' });
         if (theftCount > 0) dynamicIncidents.push({ type: 'Assault', count: theftCount, trend: 'stable' });
         if (suspiciousCount > 0) dynamicIncidents.push({ type: 'Suspicious Activity', count: suspiciousCount, trend: 'up' });
