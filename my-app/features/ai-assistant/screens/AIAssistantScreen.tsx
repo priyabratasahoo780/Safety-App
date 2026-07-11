@@ -54,7 +54,7 @@ export function AIAssistantScreen() {
     <SafeAreaView style={styles.safeArea}>
       <View style={styles.header}>
         <TouchableOpacity 
-          onPress={() => router.back()} 
+          onPress={() => router.canGoBack() ? router.back() : router.replace('/(drawer)/(tabs)')} 
           style={styles.headerBtn}
           accessibilityRole="button"
           accessibilityLabel="Go back"

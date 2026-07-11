@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   StyleSheet,
   View,
@@ -7,6 +7,7 @@ import {
   TouchableOpacity,
   ScrollView,
   Dimensions,
+  ActivityIndicator,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
@@ -23,7 +24,7 @@ export default function NavigateScreen() {
   const router = useRouter();
   const { width } = useWindowDimensions();
   const insets = useSafeAreaInsets();
-  const TAB_BAR_HEIGHT = 70; // Our custom floating tab bar height
+  const TAB_BAR_HEIGHT = 70;
   const bottomPadding = TAB_BAR_HEIGHT + insets.bottom + 20;
 
   const [selectedRoute, setSelectedRoute] = useState<'recommended' | 'shorter'>('recommended');
@@ -31,70 +32,85 @@ export default function NavigateScreen() {
   const { location } = useLiveLocation();
   const [routes, setRoutes] = useState<RouteOption[]>([]);
   const [destinationCoords, setDestinationCoords] = useState({ latitude: 22.5855, longitude: 88.4166 });
+  const [isRouting, setIsRouting] = useState(false);
 
-  React.useEffect(() => {
-    if (location) {
-      const start = { latitude: location.latitude, longitude: location.longitude };
-      const end = destinationCoords;
-      
-      // Calculate straight-line distance in km (Haversine)
-      const toRad = (value: number) => (value * Math.PI) / 180;
-      const R = 6371; // Earth's radius in km
-      const dLat = toRad(end.latitude - start.latitude);
-      const dLon = toRad(end.longitude - start.longitude);
-      const a =
-        Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-        Math.cos(toRad(start.latitude)) * Math.cos(toRad(end.latitude)) *
-        Math.sin(dLon / 2) * Math.sin(dLon / 2);
-      const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-      const distanceKm = R * c;
-      
-      // Direct Route is roughly 1.3x straight-line distance due to roads
-      const directDist = distanceKm * 1.3;
-      // Safest route might be slightly longer, say 1.5x
-      const safeDist = distanceKm * 1.5;
-      
-      // Assume average speed in city is 30 km/h (0.5 km/min)
-      const directMins = Math.max(1, Math.round(directDist / 0.5));
-      const safeMins = Math.max(1, Math.round(safeDist / 0.5));
+  useEffect(() => {
+    if (location && destinationCoords) {
+      fetchRealRoutes();
+    }
+  }, [location, destinationCoords]);
 
-      const generatePath = (curveOffset: number) => [
-        start,
-        { latitude: start.latitude + (end.latitude - start.latitude) * 0.3 + curveOffset, longitude: start.longitude + (end.longitude - start.longitude) * 0.3 },
-        { latitude: start.latitude + (end.latitude - start.latitude) * 0.7 - curveOffset, longitude: start.longitude + (end.longitude - start.longitude) * 0.7 },
-        end
-      ];
+  const fetchRealRoutes = async () => {
+    if (!location) return;
+    setIsRouting(true);
+    
+    try {
+      const start = `${location.longitude},${location.latitude}`;
+      const end = `${destinationCoords.longitude},${destinationCoords.latitude}`;
+      
+      const drivingRes = await fetch(`https://router.project-osrm.org/route/v1/driving/${start};${end}?overview=full&geometries=geojson`);
+      const drivingData = await drivingRes.json();
+      
+      const walkingRes = await fetch(`https://router.project-osrm.org/route/v1/foot/${start};${end}?overview=full&geometries=geojson`);
+      const walkingData = await walkingRes.json();
+      
+      const newRoutes: RouteOption[] = [];
 
-      setRoutes([
-        {
+      if (walkingData.code === 'Ok' && walkingData.routes.length > 0) {
+        const route = walkingData.routes[0];
+        const distanceKm = (route.distance / 1000).toFixed(1);
+        const durationMins = Math.max(1, Math.round(route.duration / 60));
+        
+        newRoutes.push({
           id: 'recommended',
           title: 'Safest Route',
           theme: 'green',
           description: 'AI Recommended',
-          duration: `${safeMins > 60 ? Math.floor(safeMins/60) + ' hr ' + (safeMins%60) : safeMins} mins`,
-          distance: `${safeDist.toFixed(1)} km`,
+          duration: `${durationMins > 60 ? Math.floor(durationMins/60) + ' hr ' + (durationMins%60) : durationMins} mins`,
+          distance: `${distanceKm} km`,
           tags: [],
-          coordinates: generatePath(0.002)
-        },
-        {
+          coordinates: route.geometry.coordinates.map((coord: number[]) => ({
+            latitude: coord[1],
+            longitude: coord[0]
+          }))
+        });
+      }
+
+      if (drivingData.code === 'Ok' && drivingData.routes.length > 0) {
+        const route = drivingData.routes[0];
+        const distanceKm = (route.distance / 1000).toFixed(1);
+        const durationMins = Math.max(1, Math.round(route.duration / 60));
+        
+        newRoutes.push({
           id: 'shorter',
           title: 'Direct Route',
           theme: 'orange',
           description: 'Fastest',
-          duration: `${directMins > 60 ? Math.floor(directMins/60) + ' hr ' + (directMins%60) : directMins} mins`,
-          distance: `${directDist.toFixed(1)} km`,
+          duration: `${durationMins > 60 ? Math.floor(durationMins/60) + ' hr ' + (durationMins%60) : durationMins} mins`,
+          distance: `${distanceKm} km`,
           tags: [],
-          coordinates: generatePath(-0.003)
-        }
-      ]);
-    }
-  }, [location, destinationCoords]);
+          coordinates: route.geometry.coordinates.map((coord: number[]) => ({
+            latitude: coord[1],
+            longitude: coord[0]
+          }))
+        });
+      }
 
-  React.useEffect(() => {
+      setRoutes(newRoutes);
+      if (newRoutes.length > 0) {
+        setSelectedRoute(newRoutes[0].id as any);
+      }
+    } catch (e) {
+      console.warn("Routing API failed", e);
+    } finally {
+      setIsRouting(false);
+    }
+  };
+
+  useEffect(() => {
     const delayDebounceFn = setTimeout(async () => {
       if (destination.trim().length > 2) {
         try {
-          // Use Open-Meteo Geocoding API (completely free, no restrictions)
           const res = await fetch(`https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(destination)}&count=1&language=en&format=json`);
           const data = await res.json();
           if (data && data.results && data.results.length > 0) {
@@ -107,7 +123,7 @@ export default function NavigateScreen() {
           console.warn("Geocoding failed", e);
         }
       }
-    }, 1000); // 1s debounce
+    }, 1000);
 
     return () => clearTimeout(delayDebounceFn);
   }, [destination]);
@@ -136,7 +152,6 @@ export default function NavigateScreen() {
     <SafeAreaView style={styles.container} edges={['top']}>
       <StatusBar style="dark" />
       
-      {/* Route Map Header and Search inputs */}
       <View style={styles.searchHeader}>
         <Text style={styles.title}>Safe Navigation</Text>
         
@@ -178,7 +193,6 @@ export default function NavigateScreen() {
         </View>
       </View>
 
-      {/* Main Map Visualization */}
       <View style={styles.mapContainer}>
         <SafeRouteMap 
           currentLocation={location}
@@ -189,95 +203,91 @@ export default function NavigateScreen() {
         />
       </View>
 
-      {/* Route Cards Scroll Container */}
       <View style={[styles.bottomCardWrapper, { bottom: bottomPadding }]}>
         <Text style={styles.cardsHeader}>Select Route</Text>
 
-        <ScrollView 
-          horizontal 
-          showsHorizontalScrollIndicator={false}
-          contentContainerStyle={styles.routesScroll}
-        >
-          {/* Route 1: Safest Route (Violet/Green) */}
-          <TouchableOpacity 
-            style={[
-              styles.routeCard, 
-              { width: width * 0.65 },
-              selectedRoute === 'recommended' && styles.activeRouteCard
-            ]}
-            onPress={() => setSelectedRoute('recommended')}
-            activeOpacity={0.9}
+        {isRouting ? (
+          <View style={{ height: 120, justifyContent: 'center', alignItems: 'center' }}>
+            <ActivityIndicator size="large" color="#6D28D9" />
+            <Text style={{ marginTop: 8, color: '#6B7280', fontSize: 13 }}>Calculating safest routes...</Text>
+          </View>
+        ) : (
+          <ScrollView 
+            horizontal 
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={styles.routesScroll}
           >
-            <View style={styles.routeHeader}>
-              <View style={styles.badgeSafest}>
-                <Text style={styles.badgeText}>AI RECOMMENDED</Text>
-              </View>
-              <View style={[styles.scoreBadge, { backgroundColor: '#DEF7EC' }]}>
-                <Text style={[styles.scoreText, { color: '#0E9F6E' }]}>92</Text>
-              </View>
-            </View>
+            {routes.map((route) => (
+              <TouchableOpacity 
+                key={route.id}
+                style={[
+                  styles.routeCard, 
+                  { width: width * 0.65 },
+                  selectedRoute === route.id && styles.activeRouteCard
+                ]}
+                onPress={() => setSelectedRoute(route.id as 'recommended' | 'shorter')}
+                activeOpacity={0.9}
+              >
+                <View style={styles.routeHeader}>
+                  {route.id === 'recommended' ? (
+                    <View style={styles.badgeSafest}>
+                      <Text style={styles.badgeText}>AI RECOMMENDED</Text>
+                    </View>
+                  ) : (
+                    <View style={styles.badgeFastest}>
+                      <Text style={styles.badgeText}>FASTEST</Text>
+                    </View>
+                  )}
+                  <View style={[styles.scoreBadge, { backgroundColor: route.id === 'recommended' ? '#DEF7EC' : '#FEF3C7' }]}>
+                    <Text style={[styles.scoreText, { color: route.id === 'recommended' ? '#0E9F6E' : '#D97706' }]}>
+                      {route.id === 'recommended' ? '92' : '64'}
+                    </Text>
+                  </View>
+                </View>
 
-            <Text style={styles.routeTitle}>Safest Route</Text>
-            <Text style={styles.routeMetrics}>16 mins • 4.2 km</Text>
-            
-            <View style={styles.featuresList}>
-              <View style={styles.featureItem}>
-                <Feather name="eye" size={12} color="#16A34A" />
-                <Text style={styles.featureText}>Well-lit streets</Text>
-              </View>
-              <View style={styles.featureItem}>
-                <Feather name="check-circle" size={12} color="#16A34A" />
-                <Text style={styles.featureText}>Safe Havens open</Text>
-              </View>
-            </View>
-          </TouchableOpacity>
+                <Text style={styles.routeTitle}>{route.title}</Text>
+                <Text style={styles.routeMetrics}>{route.duration} • {route.distance}</Text>
+                
+                <View style={styles.featuresList}>
+                  {route.id === 'recommended' ? (
+                    <>
+                      <View style={styles.featureItem}>
+                        <Feather name="eye" size={12} color="#16A34A" />
+                        <Text style={styles.featureText}>Well-lit streets</Text>
+                      </View>
+                      <View style={styles.featureItem}>
+                        <Feather name="check-circle" size={12} color="#16A34A" />
+                        <Text style={styles.featureText}>Safe Havens open</Text>
+                      </View>
+                    </>
+                  ) : (
+                    <>
+                      <View style={styles.featureItem}>
+                        <Feather name="alert-triangle" size={12} color="#D97706" />
+                        <Text style={styles.featureText}>Dim lighting reported</Text>
+                      </View>
+                      <View style={styles.featureItem}>
+                        <Feather name="slash" size={12} color="#D97706" />
+                        <Text style={styles.featureText}>Fewer open shops</Text>
+                      </View>
+                    </>
+                  )}
+                </View>
+              </TouchableOpacity>
+            ))}
+          </ScrollView>
+        )}
 
-          {/* Route 2: Shortest Route */}
-          <TouchableOpacity 
-            style={[
-              styles.routeCard,
-              { width: width * 0.65 },
-              selectedRoute === 'shorter' && styles.activeRouteCard
-            ]}
-            onPress={() => setSelectedRoute('shorter')}
-            activeOpacity={0.9}
-          >
-            <View style={styles.routeHeader}>
-              <View style={styles.badgeFastest}>
-                <Text style={styles.badgeText}>FASTEST</Text>
-              </View>
-              <View style={[styles.scoreBadge, { backgroundColor: '#FEF3C7' }]}>
-                <Text style={[styles.scoreText, { color: '#D97706' }]}>64</Text>
-              </View>
-            </View>
-
-            <Text style={styles.routeTitle}>Direct Route</Text>
-            <Text style={styles.routeMetrics}>12 mins • 3.1 km</Text>
-            
-            <View style={styles.featuresList}>
-              <View style={styles.featureItem}>
-                <Feather name="alert-triangle" size={12} color="#D97706" />
-                <Text style={styles.featureText}>Dim lighting reported</Text>
-              </View>
-              <View style={styles.featureItem}>
-                <Feather name="slash" size={12} color="#D97706" />
-                <Text style={styles.featureText}>Fewer open shops</Text>
-              </View>
-            </View>
-          </TouchableOpacity>
-        </ScrollView>
-
-        {/* Start Button */}
         <TouchableOpacity 
           style={styles.startButton}
           activeOpacity={0.9}
           onPress={handleStartJourney}
+          disabled={isRouting || routes.length === 0}
         >
           <Text style={styles.startButtonText}>Configure Journey Timer</Text>
           <Feather name="chevron-right" size={20} color="#FFFFFF" />
         </TouchableOpacity>
       </View>
-
     </SafeAreaView>
   );
 }
@@ -359,72 +369,8 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#FFFFFF',
   },
-  simulatedMap: {
-    flex: 1,
-    backgroundColor: '#F3F4F6',
-    position: 'relative',
-    overflow: 'hidden',
-  },
-  roadLine: {
-    position: 'absolute',
-    height: 36,
-    width: '120%',
-    backgroundColor: '#E5E7EB',
-    left: '-10%',
-  },
-  fastestPathLine: {
-    position: 'absolute',
-    top: '50%',
-    left: '25%',
-    width: '50%',
-    height: 4,
-    backgroundColor: '#F59E0B',
-    borderRadius: 2,
-    borderStyle: 'dashed',
-    transform: [{ rotate: '-35deg' }],
-  },
-  safestPathLine: {
-    position: 'absolute',
-    top: '55%',
-    left: '25%',
-    width: '58%',
-    height: 6,
-    backgroundColor: '#10B981',
-    borderRadius: 3,
-    transform: [{ rotate: '-10deg' }],
-  },
-  pin: {
-    position: 'absolute',
-    zIndex: 10,
-  },
-  startPinCore: {
-    width: 16,
-    height: 16,
-    borderRadius: 8,
-    backgroundColor: '#6D28D9',
-    borderWidth: 3,
-    borderColor: '#FFFFFF',
-  },
-  dangerOverlay: {
-    position: 'absolute',
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#FEE2E2',
-    borderColor: '#FCA5A5',
-    borderWidth: 1,
-    borderRadius: 12,
-    paddingVertical: 4,
-    paddingHorizontal: 8,
-  },
-  dangerLabel: {
-    color: '#B91C1C',
-    fontSize: 10,
-    fontWeight: '700',
-    marginLeft: 4,
-  },
   bottomCardWrapper: {
     position: 'absolute',
-    bottom: 90,
     left: 0,
     right: 0,
     backgroundColor: '#FFFFFF',
@@ -451,37 +397,37 @@ const styles = StyleSheet.create({
   },
   routeCard: {
     backgroundColor: '#FFFFFF',
+    borderRadius: 16,
+    padding: 14,
     borderWidth: 2,
     borderColor: '#F3F4F6',
-    borderRadius: 18,
-    padding: 16,
   },
   activeRouteCard: {
     borderColor: '#6D28D9',
-    backgroundColor: '#F9F7FD',
+    backgroundColor: '#FAF5FF',
   },
   routeHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 10,
+    marginBottom: 8,
   },
   badgeSafest: {
-    backgroundColor: '#EDE9FE',
-    paddingVertical: 3,
+    backgroundColor: '#7138E8',
     paddingHorizontal: 8,
-    borderRadius: 12,
+    paddingVertical: 4,
+    borderRadius: 6,
   },
   badgeFastest: {
-    backgroundColor: '#FEF3C7',
-    paddingVertical: 3,
+    backgroundColor: '#1F2937',
     paddingHorizontal: 8,
-    borderRadius: 12,
+    paddingVertical: 4,
+    borderRadius: 6,
   },
   badgeText: {
-    fontSize: 9,
+    color: '#FFFFFF',
+    fontSize: 10,
     fontWeight: '800',
-    color: '#6D28D9',
   },
   scoreBadge: {
     width: 28,

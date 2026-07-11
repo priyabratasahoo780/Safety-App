@@ -7,6 +7,7 @@ import { ShieldAlert, MapPin, AlertTriangle, Activity } from 'lucide-react-nativ
 import * as Location from 'expo-location';
 import { collection, getDocs, query, orderBy } from 'firebase/firestore';
 import { db } from '../../src/config/firebaseConfig';
+import { getHistoricalBaseScore } from '../../constants/historicalCrimeData';
 
 const COLORS = {
   bg: '#EBF0F9',
@@ -42,6 +43,7 @@ export default function CrimeRateScreen() {
   const [crimeData, setCrimeData] = useState({
     overallRisk: 'Low',
     riskScore: 0,
+    baseScore: 15,
     recentIncidents: [] as { type: string, count: number, trend: string }[],
     safestTime: '8:00 AM - 6:00 PM',
     dangerTime: '10:00 PM - 4:00 AM'
@@ -64,11 +66,16 @@ export default function CrimeRateScreen() {
           longitude: location.coords.longitude
         });
         
+        let currentRegion = '';
         if (geocode && geocode.length > 0) {
-          setLocationName(`${geocode[0].city || geocode[0].district}, ${geocode[0].region}`);
+          currentRegion = geocode[0].region || '';
+          setLocationName(`${geocode[0].city || geocode[0].district}, ${currentRegion}`);
         } else {
           setLocationName('Unknown Area');
         }
+
+        // Get Historical Base Score from NCRB Dataset (2001-2021 average)
+        const historicalBaseScore = getHistoricalBaseScore(currentRegion);
 
         // Fetch Live Crime Data
         const q = query(collection(db, 'community_reports'), orderBy('createdAt', 'desc'));
@@ -87,8 +94,9 @@ export default function CrimeRateScreen() {
           else if (data.category === 'Poor Lighting') lightingCount++;
         });
 
-        // Simple algorithm: Harassment/Theft are weighted heavily
-        const totalScore = Math.min(100, (harassmentCount * 15) + (theftCount * 20) + (suspiciousCount * 10) + (lightingCount * 5));
+        // Hybrid algorithm: Historical NCRB Baseline + Live Community Reports
+        const liveIncidentImpact = (harassmentCount * 15) + (theftCount * 20) + (suspiciousCount * 10) + (lightingCount * 5);
+        const totalScore = Math.min(100, historicalBaseScore + liveIncidentImpact);
         let riskLevel = 'Low';
         if (totalScore > 35) riskLevel = 'Moderate';
         if (totalScore > 70) riskLevel = 'High';
@@ -106,6 +114,7 @@ export default function CrimeRateScreen() {
         setCrimeData(prev => ({
           ...prev,
           riskScore: totalScore,
+          baseScore: historicalBaseScore,
           overallRisk: riskLevel,
           recentIncidents: dynamicIncidents.sort((a, b) => b.count - a.count)
         }));
@@ -148,8 +157,20 @@ export default function CrimeRateScreen() {
               }}>{crimeData.overallRisk}</Text>
             </Text>
             <Text style={styles.riskDesc}>
-              {riskDescriptions[crimeData.overallRisk as keyof typeof riskDescriptions] || riskDescriptions['Low']}
+              {riskDescriptions[crimeData.overallRisk as keyof typeof riskDescriptions]}
             </Text>
+            
+            {/* Breakdown */}
+            <View style={{ width: '100%', marginTop: 20, paddingTop: 20, borderTopWidth: 1, borderTopColor: '#E2E8F0' }}>
+              <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 8 }}>
+                <Text style={{ color: COLORS.textSecondary, fontSize: 13 }}>NCRB Historical Base (2001-2021):</Text>
+                <Text style={{ color: COLORS.textPrimary, fontWeight: 'bold' }}>{crimeData.baseScore}</Text>
+              </View>
+              <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
+                <Text style={{ color: COLORS.textSecondary, fontSize: 13 }}>Live Community Impact:</Text>
+                <Text style={{ color: COLORS.red, fontWeight: 'bold' }}>+{crimeData.riskScore - crimeData.baseScore}</Text>
+              </View>
+            </View>
           </View>
         </NeumorphicCard>
 

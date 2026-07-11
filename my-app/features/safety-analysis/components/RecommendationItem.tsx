@@ -1,6 +1,6 @@
 import React from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Alert } from 'react-native';
-import { MoonStar, Users, Bell, MapPin } from 'lucide-react-native';
+import { MoonStar, Users, Bell, MapPin, UserPlus, ShieldCheck } from 'lucide-react-native';
 import { useRouter } from 'expo-router';
 import { SafetyRecommendation } from '../types/safety-analysis.types';
 
@@ -37,6 +37,8 @@ export const RecommendationItem: React.FC<RecommendationItemProps> = ({ item, on
       case 'users': return <Users size={20} color={color} />;
       case 'bell': return <Bell size={20} color={color} />;
       case 'map-pin': return <MapPin size={20} color={color} />;
+      case 'user-plus': return <UserPlus size={20} color={color} />;
+      case 'shield-check': return <ShieldCheck size={20} color={color} />;
       default: return <MoonStar size={20} color={color} />;
     }
   };

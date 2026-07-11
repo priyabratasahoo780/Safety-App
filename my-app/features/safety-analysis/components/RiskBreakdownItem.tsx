@@ -1,6 +1,6 @@
 import React, { useEffect, useRef } from 'react';
 import { View, Text, StyleSheet, Animated, Easing } from 'react-native';
-import { TriangleAlert, Lightbulb, House, LockKeyhole, ChevronRight } from 'lucide-react-native';
+import { TriangleAlert, Lightbulb, House, LockKeyhole, ChevronRight, UsersRound, Users, MapPinOff, MoonStar } from 'lucide-react-native';
 import { RiskBreakdownItem as RiskBreakdownItemType } from '../types/safety-analysis.types';
 
 interface RiskBreakdownItemProps {
@@ -25,6 +25,10 @@ export const RiskBreakdownItem: React.FC<RiskBreakdownItemProps> = ({ item }) =>
       case 'lightbulb': return <Lightbulb size={22} color={color} />;
       case 'house': return <House size={22} color={color} />;
       case 'lock-keyhole': return <LockKeyhole size={22} color={color} />;
+      case 'users-round': return <UsersRound size={22} color={color} />;
+      case 'users': return <Users size={22} color={color} />;
+      case 'map-pin-off': return <MapPinOff size={22} color={color} />;
+      case 'moon-star': return <MoonStar size={22} color={color} />;
       default: return <TriangleAlert size={22} color={color} />;
     }
   };
