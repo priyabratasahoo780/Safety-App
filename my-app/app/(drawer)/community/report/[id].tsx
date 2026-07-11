@@ -3,44 +3,41 @@ import { StyleSheet, View, Text, TouchableOpacity, SafeAreaView, ScrollView } fr
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { Feather } from '@expo/vector-icons';
 import { StatusBar } from 'expo-status-bar';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { doc, getDoc } from 'firebase/firestore';
+import { db } from '../../../../src/config/firebaseConfig';
 
 export default function IncidentDetailScreen() {
   const router = useRouter();
   const { id } = useLocalSearchParams();
+  const insets = useSafeAreaInsets();
+  const [incident, setIncident] = React.useState<any>(null);
+  const [loading, setLoading] = React.useState(true);
 
-  // Mock database (in a real app, you'd fetch this from your backend)
-  const incidentsDb = [
-    {
-      id: '1',
-      category: 'Poor Lighting',
-      location: 'Near Salt Lake Sector V Metro Station',
-      time: '2 hours ago',
-      description: 'Streetlights under the metro bridge are completely broken. Extremely dark walking path after 8 PM.',
-      votes: 18,
-      verified: true,
-    },
-    {
-      id: '2',
-      category: 'Harassment',
-      location: 'Block GP, Sector V',
-      time: '1 day ago',
-      description: 'Group of men loitering near the tea stall catcalling women walking past towards office complexes.',
-      votes: 34,
-      verified: true,
-    },
-    {
-      id: '3',
-      category: 'Suspicious Activity',
-      location: 'Sector 3 Park Lane',
-      time: '3 days ago',
-      description: 'Unmarked van parked near the playground gates for multiple nights. Drivers watching passersby.',
-      votes: 8,
-      verified: false,
-    }
-  ];
-
-  // Find the exact incident they clicked on, or fallback to a default if not found
-  const incident = incidentsDb.find(inc => inc.id === id) || incidentsDb[1];
+  React.useEffect(() => {
+    const fetchIncident = async () => {
+      try {
+        if (!id) return;
+        const docRef = doc(db, 'community_reports', id as string);
+        const docSnap = await getDoc(docRef);
+        
+        if (docSnap.exists()) {
+          const data = docSnap.data();
+          setIncident({
+            id: docSnap.id,
+            ...data,
+            time: data.createdAt ? new Date(data.createdAt.toDate()).toLocaleString() : 'Just now'
+          });
+        }
+      } catch (e) {
+        console.error("Error fetching incident:", e);
+      } finally {
+        setLoading(false);
+      }
+    };
+    
+    fetchIncident();
+  }, [id]);
 
   const getCategoryColor = (category: string) => {
     switch (category) {
@@ -51,8 +48,31 @@ export default function IncidentDetailScreen() {
     }
   };
 
+  if (loading) {
+    return (
+      <View style={[styles.container, { paddingTop: insets.top, justifyContent: 'center', alignItems: 'center' }]}>
+        <Text>Loading incident details...</Text>
+      </View>
+    );
+  }
+
+  if (!incident) {
+    return (
+      <View style={[styles.container, { paddingTop: insets.top }]}>
+        <View style={styles.header}>
+          <TouchableOpacity style={styles.backBtn} onPress={() => router.back()}>
+            <Feather name="arrow-left" size={24} color="#1F2937" />
+          </TouchableOpacity>
+        </View>
+        <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
+          <Text>Incident not found.</Text>
+        </View>
+      </View>
+    );
+  }
+
   return (
-    <SafeAreaView style={styles.container}>
+    <View style={[styles.container, { paddingTop: insets.top }]}>
       <StatusBar style="dark" />
       
       {/* Header */}
@@ -103,7 +123,7 @@ export default function IncidentDetailScreen() {
         </View>
 
       </ScrollView>
-    </SafeAreaView>
+    </View>
   );
 }
 

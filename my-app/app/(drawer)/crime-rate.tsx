@@ -1,9 +1,12 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, SafeAreaView, ScrollView, ActivityIndicator } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, ActivityIndicator } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { DrawerToggleButton } from '@react-navigation/drawer';
 import { Feather } from '@expo/vector-icons';
 import { ShieldAlert, MapPin, AlertTriangle, Activity } from 'lucide-react-native';
 import * as Location from 'expo-location';
+import { collection, getDocs, query, orderBy } from 'firebase/firestore';
+import { db } from '../../src/config/firebaseConfig';
 
 const COLORS = {
   bg: '#EBF0F9',
@@ -25,22 +28,24 @@ const NeumorphicCard = ({ children, style, padding = 20 }: any) => (
   </View>
 );
 
+const riskDescriptions = {
+  'Low': 'This area is generally safe with a very low number of reported incidents.',
+  'Moderate': 'The crime rate here is slightly above average. Remain vigilant during night hours.',
+  'High': 'High volume of incidents reported. Exercise extreme caution in this area.'
+};
+
 export default function CrimeRateScreen() {
+  const insets = useSafeAreaInsets();
   const [loading, setLoading] = useState(true);
   const [locationName, setLocationName] = useState('Fetching location...');
   
-  // Dummy data
-  const crimeData = {
-    overallRisk: 'Moderate',
-    riskScore: 68,
-    recentIncidents: [
-      { type: 'Theft', count: 12, trend: 'up' },
-      { type: 'Harassment', count: 5, trend: 'down' },
-      { type: 'Assault', count: 2, trend: 'stable' }
-    ],
+  const [crimeData, setCrimeData] = useState({
+    overallRisk: 'Low',
+    riskScore: 0,
+    recentIncidents: [] as { type: string, count: number, trend: string }[],
     safestTime: '8:00 AM - 6:00 PM',
     dangerTime: '10:00 PM - 4:00 AM'
-  };
+  });
 
   useEffect(() => {
     (async () => {
@@ -52,6 +57,7 @@ export default function CrimeRateScreen() {
       }
       
       try {
+        // Fetch Location
         let location = await Location.getCurrentPositionAsync({});
         let geocode = await Location.reverseGeocodeAsync({
           latitude: location.coords.latitude,
@@ -63,6 +69,47 @@ export default function CrimeRateScreen() {
         } else {
           setLocationName('Unknown Area');
         }
+
+        // Fetch Live Crime Data
+        const q = query(collection(db, 'community_reports'), orderBy('createdAt', 'desc'));
+        const snapshot = await getDocs(q);
+        
+        let harassmentCount = 0;
+        let theftCount = 0;
+        let suspiciousCount = 0;
+        let lightingCount = 0;
+
+        snapshot.forEach((doc) => {
+          const data = doc.data();
+          if (data.category === 'Harassment') harassmentCount++;
+          else if (data.category === 'Theft' || data.category === 'Assault') theftCount++;
+          else if (data.category === 'Suspicious Activity') suspiciousCount++;
+          else if (data.category === 'Poor Lighting') lightingCount++;
+        });
+
+        // Simple algorithm: Harassment/Theft are weighted heavily
+        const totalScore = Math.min(100, (harassmentCount * 15) + (theftCount * 20) + (suspiciousCount * 10) + (lightingCount * 5));
+        let riskLevel = 'Low';
+        if (totalScore > 35) riskLevel = 'Moderate';
+        if (totalScore > 70) riskLevel = 'High';
+
+        const dynamicIncidents = [];
+        if (harassmentCount > 0) dynamicIncidents.push({ type: 'Harassment', count: harassmentCount, trend: 'up' });
+        if (theftCount > 0) dynamicIncidents.push({ type: 'Assault', count: theftCount, trend: 'stable' });
+        if (suspiciousCount > 0) dynamicIncidents.push({ type: 'Suspicious Activity', count: suspiciousCount, trend: 'up' });
+        if (lightingCount > 0) dynamicIncidents.push({ type: 'Poor Lighting', count: lightingCount, trend: 'down' });
+        
+        if (dynamicIncidents.length === 0) {
+           dynamicIncidents.push({ type: 'No Incidents', count: 0, trend: 'stable' });
+        }
+
+        setCrimeData(prev => ({
+          ...prev,
+          riskScore: totalScore,
+          overallRisk: riskLevel,
+          recentIncidents: dynamicIncidents.sort((a, b) => b.count - a.count)
+        }));
+
       } catch (e) {
         setLocationName('Salt Lake Sector V, Kolkata'); // Fallback demo location
       } finally {
@@ -72,7 +119,7 @@ export default function CrimeRateScreen() {
   }, []);
 
   return (
-    <SafeAreaView style={styles.container}>
+    <View style={[styles.container, { paddingTop: insets.top }]}>
       <View style={styles.header}>
         <DrawerToggleButton tintColor={COLORS.textPrimary} />
         <Text style={styles.headerTitle}>Local Crime Rate</Text>
@@ -87,13 +134,23 @@ export default function CrimeRateScreen() {
         </View>
 
         {/* Big Score Card */}
-        <NeumorphicCard style={{ marginBottom: 24, alignItems: 'center' }}>
-          <View style={[styles.scoreCircle, { borderColor: COLORS.orange }]}>
-            <Text style={styles.scoreValue}>{crimeData.riskScore}</Text>
-            <Text style={styles.scoreMax}>/100</Text>
+        <NeumorphicCard style={{ marginBottom: 24 }}>
+          <View style={{ alignItems: 'center', width: '100%' }}>
+            <View style={[styles.scoreCircle, { 
+              borderColor: crimeData.overallRisk === 'High' ? COLORS.red : crimeData.overallRisk === 'Moderate' ? COLORS.orange : COLORS.green 
+            }]}>
+              <Text style={styles.scoreValue}>{crimeData.riskScore}</Text>
+              <Text style={styles.scoreMax}>out of 100</Text>
+            </View>
+            <Text style={styles.riskLevelTitle}>
+              Risk Level: <Text style={{ 
+                color: crimeData.overallRisk === 'High' ? COLORS.red : crimeData.overallRisk === 'Moderate' ? COLORS.orange : COLORS.green 
+              }}>{crimeData.overallRisk}</Text>
+            </Text>
+            <Text style={styles.riskDesc}>
+              {riskDescriptions[crimeData.overallRisk as keyof typeof riskDescriptions] || riskDescriptions['Low']}
+            </Text>
           </View>
-          <Text style={styles.riskLevelTitle}>Risk Level: <Text style={{ color: COLORS.orange }}>{crimeData.overallRisk}</Text></Text>
-          <Text style={styles.riskDesc}>The crime rate in this area is slightly above average. Remain vigilant during night hours.</Text>
         </NeumorphicCard>
 
         {/* Time Analysis */}
@@ -140,7 +197,7 @@ export default function CrimeRateScreen() {
         </NeumorphicCard>
 
       </ScrollView>
-    </SafeAreaView>
+    </View>
   );
 }
 
@@ -168,9 +225,9 @@ const styles = StyleSheet.create({
     shadowOpacity: 1,
     shadowRadius: 12,
   },
-  scoreCircle: { width: 120, height: 120, borderRadius: 60, borderWidth: 8, justifyContent: 'center', alignItems: 'center', marginBottom: 16, flexDirection: 'row' },
-  scoreValue: { fontSize: 36, fontWeight: '900', color: COLORS.textPrimary },
-  scoreMax: { fontSize: 16, fontWeight: '700', color: COLORS.textSecondary, marginTop: 12 },
+  scoreCircle: { width: 140, height: 140, borderRadius: 70, borderWidth: 8, justifyContent: 'center', alignItems: 'center', marginBottom: 16, flexDirection: 'column' },
+  scoreValue: { fontSize: 44, fontWeight: '900', color: COLORS.textPrimary },
+  scoreMax: { fontSize: 14, fontWeight: '700', color: COLORS.textSecondary, marginTop: -4 },
   riskLevelTitle: { fontSize: 18, fontWeight: '800', color: COLORS.textPrimary, marginBottom: 8 },
   riskDesc: { fontSize: 14, color: COLORS.textSecondary, textAlign: 'center', lineHeight: 20, paddingHorizontal: 10 },
   sectionTitle: { fontSize: 15, fontWeight: '800', color: COLORS.textPrimary, marginBottom: 16, marginLeft: 4 },

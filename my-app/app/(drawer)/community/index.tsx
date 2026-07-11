@@ -6,12 +6,15 @@ import {
   TouchableOpacity,
   ScrollView,
   Dimensions,
+  Share,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { useRouter, useFocusEffect } from 'expo-router';
 import { Feather } from '@expo/vector-icons';
-import { collection, query, orderBy, getDocs } from 'firebase/firestore';
+import MapView, { Marker, Circle, UrlTile } from 'react-native-maps';
+import { collection, query, orderBy, getDocs, doc, updateDoc, arrayUnion, arrayRemove } from 'firebase/firestore';
+import { useAuth } from '@clerk/clerk-expo';
 import { db } from '../../../src/config/firebaseConfig';
 import { useCallback } from 'react';
 
@@ -26,10 +29,14 @@ interface Incident {
   votes: number;
   myVote: 'up' | 'down' | null;
   verified: boolean;
+  latitude: number;
+  longitude: number;
 }
 
 export default function CommunityScreen() {
   const router = useRouter();
+  const insets = useSafeAreaInsets();
+  const { userId } = useAuth();
   const [activeTab, setActiveTab] = useState<'feed' | 'heatmap'>('heatmap');
   const [incidents, setIncidents] = useState<Incident[]>([]);
   const [loading, setLoading] = useState(true);
@@ -44,15 +51,24 @@ export default function CommunityScreen() {
           
           snapshot.forEach((doc) => {
             const data = doc.data();
+            
+            let myVote: 'up' | 'down' | null = null;
+            if (userId) {
+              if (data.upvoters?.includes(userId)) myVote = 'up';
+              else if (data.downvoters?.includes(userId)) myVote = 'down';
+            }
+
             fetchedData.push({
               id: doc.id,
               category: data.category as any,
               location: data.location,
               description: data.description,
               votes: data.votes || 0,
-              myVote: null,
+              myVote: myVote,
               verified: data.verified || false,
-              time: data.createdAt ? new Date(data.createdAt.toDate()).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}) : 'Just now'
+              time: data.createdAt ? new Date(data.createdAt.toDate()).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}) : 'Just now',
+              latitude: data.latitude, // Now strictly relying on real data
+              longitude: data.longitude, // Now strictly relying on real data
             });
           });
           
@@ -68,30 +84,83 @@ export default function CommunityScreen() {
     }, [])
   );
 
-  const handleVote = (id: string, type: 'up' | 'down') => {
+  const handleVote = async (id: string, type: 'up' | 'down') => {
+    const incidentToVote = incidents.find(i => i.id === id);
+    if (!incidentToVote) return;
+
+    let voteChange = 0;
+    let newVote: 'up' | 'down' | null = type;
+
+    if (incidentToVote.myVote === type) {
+      // Undo vote
+      voteChange = type === 'up' ? -1 : 1;
+      newVote = null;
+    } else {
+      // Change vote or new vote
+      const prevChange = incidentToVote.myVote === 'up' ? -1 : incidentToVote.myVote === 'down' ? 1 : 0;
+      const newChange = type === 'up' ? 1 : -1;
+      voteChange = prevChange + newChange;
+    }
+
+    const newVotes = incidentToVote.votes + voteChange;
+
+    // Optimistic UI update
     setIncidents(prev => prev.map(inc => {
       if (inc.id !== id) return inc;
-      
-      let voteChange = 0;
-      let newVote: 'up' | 'down' | null = type;
-
-      if (inc.myVote === type) {
-        // Undo vote
-        voteChange = type === 'up' ? -1 : 1;
-        newVote = null;
-      } else {
-        // Change vote or new vote
-        const prevChange = inc.myVote === 'up' ? -1 : inc.myVote === 'down' ? 1 : 0;
-        const newChange = type === 'up' ? 1 : -1;
-        voteChange = prevChange + newChange;
-      }
-
       return {
         ...inc,
-        votes: inc.votes + voteChange,
+        votes: newVotes,
         myVote: newVote,
       };
     }));
+
+    // Backend update
+    if (userId) {
+      try {
+        const incidentRef = doc(db, 'community_reports', id);
+        
+        let updateData: any = { votes: newVotes };
+        
+        // Remove from both lists first to cleanly switch vote types
+        if (incidentToVote.myVote === 'up') updateData.upvoters = arrayRemove(userId);
+        if (incidentToVote.myVote === 'down') updateData.downvoters = arrayRemove(userId);
+
+        // Add to the new list if they are casting a new vote
+        if (type === 'up' && newVote !== null) {
+          updateData.upvoters = incidentToVote.myVote === 'up' ? arrayRemove(userId) : arrayUnion(userId);
+        } else if (type === 'down' && newVote !== null) {
+          updateData.downvoters = incidentToVote.myVote === 'down' ? arrayRemove(userId) : arrayUnion(userId);
+        }
+        
+        // Ensure accurate toggle logic for Firebase Arrays
+        if (newVote === 'up') {
+          updateData.upvoters = arrayUnion(userId);
+          updateData.downvoters = arrayRemove(userId);
+        } else if (newVote === 'down') {
+          updateData.downvoters = arrayUnion(userId);
+          updateData.upvoters = arrayRemove(userId);
+        } else if (newVote === null) {
+          updateData.upvoters = arrayRemove(userId);
+          updateData.downvoters = arrayRemove(userId);
+        }
+
+        await updateDoc(incidentRef, updateData);
+      } catch (e) {
+        console.error('Failed to submit vote to Firebase:', e);
+      }
+    }
+  };
+
+  const handleShare = async (incident: Incident) => {
+    try {
+      const message = `Safety Alert: ${incident.category} reported at ${incident.location}.\n\nDetails: ${incident.description}\n\nStay safe! - Shared via Safety App`;
+      await Share.share({
+        message,
+        title: 'Safety Alert',
+      });
+    } catch (error) {
+      console.error('Error sharing incident:', error);
+    }
   };
 
   const getCategoryColor = (category: string) => {
@@ -104,7 +173,7 @@ export default function CommunityScreen() {
   };
 
   return (
-    <SafeAreaView style={styles.container} edges={['top']}>
+    <View style={[styles.container, { paddingTop: insets.top }]}>
       <StatusBar style="dark" />
       
       {/* Header */}
@@ -203,7 +272,7 @@ export default function CommunityScreen() {
                   </TouchableOpacity>
                 </View>
                 
-                <TouchableOpacity style={styles.shareBtn}>
+                <TouchableOpacity style={styles.shareBtn} onPress={() => handleShare(incident)}>
                   <Feather name="share-2" size={16} color="#6B7280" />
                 </TouchableOpacity>
               </View>
@@ -211,38 +280,57 @@ export default function CommunityScreen() {
           ))}
         </ScrollView>
       ) : (
-        /* Heatmap Map View */
+        /* Real Map View */
         <View style={styles.heatmapWrapper}>
-          <View style={styles.simulatedHeatmap}>
-            {/* Grid lines */}
-            <View style={[styles.mapGridLine, { top: '33%' }]} />
-            <View style={[styles.mapGridLine, { top: '66%' }]} />
-            <View style={[styles.mapGridLine, { left: '33%', width: 1, height: '100%', backgroundColor: '#E5E7EB' }]} />
-            <View style={[styles.mapGridLine, { left: '66%', width: 1, height: '100%', backgroundColor: '#E5E7EB' }]} />
+          <MapView
+            style={styles.map}
+            mapType="none" // Required to disable default Google/Apple maps base layer for free custom tiles
+            initialRegion={{
+              latitude: 22.5726,
+              longitude: 88.3639,
+              latitudeDelta: 0.05,
+              longitudeDelta: 0.05,
+            }}
+          >
+            <UrlTile
+              urlTemplate="https://a.tile.openstreetmap.de/{z}/{x}/{y}.png"
+              maximumZ={19}
+              flipY={false}
+            />
+            {incidents.filter(inc => inc.latitude && inc.longitude).map((incident) => {
+              const color = getCategoryColor(incident.category);
+              return (
+                <React.Fragment key={incident.id}>
+                  <Marker
+                    coordinate={{ latitude: incident.latitude, longitude: incident.longitude }}
+                    title={incident.category}
+                    description={incident.location}
+                    onCalloutPress={() => router.push(`/community/report/${incident.id}`)}
+                  >
+                    <View style={[styles.categoryDot, { backgroundColor: color, width: 16, height: 16, borderRadius: 8, borderWidth: 2, borderColor: '#fff' }]} />
+                  </Marker>
+                  <Circle
+                    center={{ latitude: incident.latitude, longitude: incident.longitude }}
+                    radius={300}
+                    fillColor={color + '33'} // 20% opacity
+                    strokeColor={color + '66'}
+                    strokeWidth={1}
+                  />
+                </React.Fragment>
+              );
+            })}
+          </MapView>
 
-            {/* Simulated Heatmap Glow circles matching the mockup exactly */}
-            <View style={[styles.glowCircle, styles.redGlow, { top: '45%', left: '20%' }]}>
-              <View style={[styles.glowCore, { backgroundColor: '#EF4444' }]} />
+          {/* Legend Overlay */}
+          <View style={styles.legendContainer}>
+            <Text style={styles.legendTitle}>Heatmap Legend</Text>
+            <View style={styles.legendRow}>
+              <View style={[styles.legendDot, { backgroundColor: '#EF4444' }]} />
+              <Text style={styles.legendText}>High Risk (Harassment Hotspot)</Text>
             </View>
-            <View style={[styles.glowCircle, styles.orangeGlow, { top: '25%', left: '55%' }]}>
-              <View style={[styles.glowCore, { backgroundColor: '#F59E0B' }]} />
-            </View>
-            
-            <View style={[styles.glowCircle, styles.redGlow, { top: '60%', left: '65%' }]}>
-              <View style={[styles.glowCore, { backgroundColor: '#EF4444' }]} />
-            </View>
-
-            {/* Legend Overlay */}
-            <View style={styles.legendContainer}>
-              <Text style={styles.legendTitle}>Heatmap Legend</Text>
-              <View style={styles.legendRow}>
-                <View style={[styles.legendDot, { backgroundColor: '#EF4444' }]} />
-                <Text style={styles.legendText}>High Risk (Harassment Hotspot)</Text>
-              </View>
-              <View style={styles.legendRow}>
-                <View style={[styles.legendDot, { backgroundColor: '#F59E0B' }]} />
-                <Text style={styles.legendText}>Moderate Risk (Dim Lighting)</Text>
-              </View>
+            <View style={styles.legendRow}>
+              <View style={[styles.legendDot, { backgroundColor: '#F59E0B' }]} />
+              <Text style={styles.legendText}>Moderate Risk (Dim Lighting)</Text>
             </View>
           </View>
         </View>
@@ -258,7 +346,7 @@ export default function CommunityScreen() {
         <Text style={styles.fabText}>Report Incident</Text>
       </TouchableOpacity>
 
-    </SafeAreaView>
+    </View>
   );
 }
 
@@ -430,36 +518,11 @@ const styles = StyleSheet.create({
   },
   heatmapWrapper: {
     flex: 1,
+    overflow: 'hidden',
   },
-  simulatedHeatmap: {
-    flex: 1,
-    backgroundColor: '#E5E7EB',
-    position: 'relative',
-  },
-  mapGridLine: {
-    position: 'absolute',
-    height: 1,
+  map: {
     width: '100%',
-    backgroundColor: '#D1D5DB',
-  },
-  glowCircle: {
-    position: 'absolute',
-    width: 80,
-    height: 80,
-    borderRadius: 40,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  redGlow: {
-    backgroundColor: 'rgba(239, 68, 68, 0.25)',
-  },
-  orangeGlow: {
-    backgroundColor: 'rgba(245, 158, 11, 0.25)',
-  },
-  glowCore: {
-    width: 16,
-    height: 16,
-    borderRadius: 8,
+    height: '100%',
   },
   legendContainer: {
     position: 'absolute',

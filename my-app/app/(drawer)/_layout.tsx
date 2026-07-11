@@ -9,21 +9,21 @@ export default function DrawerLayout() {
         screenOptions={{
           headerShown: false,
           drawerStyle: {
-            backgroundColor: '#18181B', // Deep dark sleek background
+            backgroundColor: '#FFFFFF', // Clean white background matching welcome theme
             width: 280,
             borderRightWidth: 1,
-            borderRightColor: '#27272A', // Subtle dark border
+            borderRightColor: '#E5E7EB', // Subtle light border
             borderTopRightRadius: 36, // Neuromorphic heavy rounding
             borderBottomRightRadius: 36,
             shadowColor: '#000000',
             shadowOffset: { width: 15, height: 0 },
-            shadowOpacity: 0.4,
+            shadowOpacity: 0.1, // Softer shadow for light theme
             shadowRadius: 25,
-            elevation: 20, // Huge shadow for floating neuromorphic effect
+            elevation: 10, 
           },
           drawerActiveBackgroundColor: '#F3E8FF', // Light purple pill
           drawerActiveTintColor: '#6D28D9', // Deep purple text/icon
-          drawerInactiveTintColor: '#71717A', // Sleek dark gray for inactive
+          drawerInactiveTintColor: '#4B5563', // Clean dark gray for inactive
           drawerItemStyle: {
             borderRadius: 24, // Perfect pill shape
             paddingHorizontal: 8,
@@ -33,7 +33,7 @@ export default function DrawerLayout() {
           drawerLabelStyle: {
             fontSize: 15,
             fontWeight: '700',
-            marginLeft: -10,
+            marginLeft: 0,
           },
         }}
       >

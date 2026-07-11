@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, SafeAreaView, ScrollView, Switch, Pressable, Alert } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, Switch, Pressable, Alert } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { DrawerToggleButton } from '@react-navigation/drawer';
 import { Feather } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
@@ -26,7 +27,8 @@ const NeumorphicCard = ({ children, style }: any) => (
 
 export default function SettingsScreen() {
   const router = useRouter();
-  const { signOut: clerkSignOut } = useAuth();
+  const insets = useSafeAreaInsets();
+  const { userId, signOut: clerkSignOut } = useAuth();
   const [preferences, setPreferences] = useState({
     pushEnabled: true,
     smsEnabled: true,
@@ -38,7 +40,8 @@ export default function SettingsScreen() {
   useEffect(() => {
     // Fetch current preferences
     const loadPrefs = async () => {
-      const profile = await authService.getUserProfile();
+      if (!userId) return;
+      const profile = await authService.getUserProfile(userId);
       if (profile && profile.safetyPreferences) {
         setPreferences({
           ...preferences,
@@ -46,15 +49,18 @@ export default function SettingsScreen() {
         });
       }
     };
-    loadPrefs();
-  }, []);
+    if (userId) {
+      loadPrefs();
+    }
+  }, [userId]);
 
   const toggleSwitch = async (key: string) => {
     const newPrefs = { ...preferences, [key]: !preferences[key as keyof typeof preferences] };
     setPreferences(newPrefs);
     
     try {
-      await authService.updateUserProfile({
+      if (!userId) throw new Error("No user ID available");
+      await authService.updateUserProfile(userId, {
         safetyPreferences: newPrefs
       });
     } catch (e) {
@@ -99,7 +105,7 @@ export default function SettingsScreen() {
   );
 
   return (
-    <SafeAreaView style={styles.container}>
+    <View style={[styles.container, { paddingTop: insets.top }]}>
       <View style={styles.header}>
         <DrawerToggleButton tintColor={COLORS.textPrimary} />
         <Text style={styles.headerTitle}>Safety Settings</Text>
@@ -164,7 +170,7 @@ export default function SettingsScreen() {
           </Pressable>
         </NeumorphicCard>
       </ScrollView>
-    </SafeAreaView>
+    </View>
   );
 }
 

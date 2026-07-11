@@ -5,7 +5,6 @@ import {
   Text,
   TouchableOpacity,
   ScrollView,
-  SafeAreaView,
   Dimensions,
   Image,
   Platform
@@ -18,6 +17,19 @@ import { LiveMap } from '../../features/location/components/LiveMap';
 
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useWindowDimensions } from 'react-native';
+import { useUser } from '@clerk/clerk-expo';
+import { authService } from '../../src/services/authService';
+
+function getDistance(lat1: number, lon1: number, lat2: number, lon2: number) {
+  const R = 6371; // km
+  const dLat = (lat2 - lat1) * Math.PI / 180;
+  const dLon = (lon2 - lon1) * Math.PI / 180;
+  const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
+            Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+            Math.sin(dLon/2) * Math.sin(dLon/2);
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+  return R * c;
+}
 
 export default function LiveTrackingScreen() {
   const router = useRouter();
@@ -28,6 +40,31 @@ export default function LiveTrackingScreen() {
 
   const [location, setLocation] = useState<Location.LocationObject | null>(null);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  
+  const { user } = useUser();
+  const [contacts, setContacts] = useState<any[]>([]);
+  const [duration, setDuration] = useState(0);
+  const [distance, setDistance] = useState(0);
+  const lastLocationRef = useRef<Location.LocationObject | null>(null);
+
+  useEffect(() => {
+    // Timer
+    const timer = setInterval(() => {
+      setDuration(prev => prev + 1);
+    }, 1000);
+    return () => clearInterval(timer);
+  }, []);
+
+  useEffect(() => {
+    // Fetch real contacts
+    if (user?.id) {
+      authService.getUserProfile(user.id).then(profile => {
+        if (profile?.trustedContacts) {
+          setContacts(profile.trustedContacts);
+        }
+      });
+    }
+  }, [user?.id]);
 
   useEffect(() => {
     let locationSubscription: Location.LocationSubscription | null = null;
@@ -46,6 +83,16 @@ export default function LiveTrackingScreen() {
           distanceInterval: 5,
         },
         (loc) => {
+          if (lastLocationRef.current) {
+            const dist = getDistance(
+              lastLocationRef.current.coords.latitude,
+              lastLocationRef.current.coords.longitude,
+              loc.coords.latitude,
+              loc.coords.longitude
+            );
+            if (dist > 0) setDistance(prev => prev + dist);
+          }
+          lastLocationRef.current = loc;
           setLocation(loc);
         }
       );
@@ -59,7 +106,7 @@ export default function LiveTrackingScreen() {
   }, []);
 
   return (
-    <SafeAreaView style={styles.container}>
+    <View style={[styles.container, { paddingTop: insets.top }]}>
       <StatusBar style="dark" />
       
       {/* Header */}
@@ -90,7 +137,7 @@ export default function LiveTrackingScreen() {
             <Text style={styles.bannerTitle}>Sharing your live location</Text>
             <Text style={styles.bannerDesc}>Your trusted contacts can see your location in real time.</Text>
           </View>
-          <TouchableOpacity style={styles.stopBtn}>
+          <TouchableOpacity style={styles.stopBtn} onPress={() => router.push('/(drawer)/(tabs)')}>
             <Text style={styles.stopBtnText}>Stop Sharing</Text>
           </TouchableOpacity>
         </View>
@@ -116,7 +163,14 @@ export default function LiveTrackingScreen() {
                 <Feather name="clock" size={18} color="#8B5CF6" />
               </View>
               <Text style={styles.statLabel}>Session Duration</Text>
-              <Text style={[styles.statValue, { color: '#8B5CF6' }]}>00:35:42</Text>
+              <Text style={[styles.statValue, { color: '#8B5CF6' }]}>
+                {(() => {
+                  const h = Math.floor(duration / 3600);
+                  const m = Math.floor((duration % 3600) / 60);
+                  const s = duration % 60;
+                  return `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
+                })()}
+              </Text>
             </View>
             
             <View style={styles.statDivider} />
@@ -126,7 +180,7 @@ export default function LiveTrackingScreen() {
                 <Feather name="map-pin" size={18} color="#0EA5E9" />
               </View>
               <Text style={styles.statLabel}>Distance Traveled</Text>
-              <Text style={[styles.statValue, { color: '#0EA5E9' }]}>2.8 km</Text>
+              <Text style={[styles.statValue, { color: '#0EA5E9' }]}>{distance.toFixed(2)} km</Text>
             </View>
             
             <View style={styles.statDivider} />
@@ -148,70 +202,49 @@ export default function LiveTrackingScreen() {
         <View style={styles.contactsCard}>
           <View style={styles.contactsHeaderRow}>
             <Text style={styles.contactsCardTitle}>Trusted Contacts Live View</Text>
-            <Text style={styles.contactsActiveText}>3 Active</Text>
+            <Text style={styles.contactsActiveText}>{contacts.length} Active</Text>
           </View>
 
-          {/* Contact 1 */}
-          <View style={styles.contactRow}>
-            <View style={styles.contactAvatar}>
-              <Image source={{ uri: 'https://i.pravatar.cc/100?img=5' }} style={styles.avatarImg} />
-            </View>
-            <View style={styles.contactInfo}>
-              <View style={styles.contactNameRow}>
-                <Text style={styles.contactName}>Ananya Sharma</Text>
-                <View style={styles.primaryTag}>
-                  <Text style={styles.primaryTagText}>Primary</Text>
+          {contacts.map((contact, i) => (
+            <View key={contact.id || i}>
+              <View style={styles.contactRow}>
+                <View style={styles.contactAvatar}>
+                  <Text style={{ color: '#8B5CF6', fontWeight: 'bold' }}>
+                    {contact.name.charAt(0).toUpperCase()}
+                  </Text>
+                </View>
+                <View style={styles.contactInfo}>
+                  <View style={styles.contactNameRow}>
+                    <Text style={styles.contactName}>{contact.name}</Text>
+                    {i === 0 && (
+                      <View style={styles.primaryTag}>
+                        <Text style={styles.primaryTagText}>Primary</Text>
+                      </View>
+                    )}
+                  </View>
+                  <Text style={[styles.contactTime, { color: '#10B981' }]}>Last updated: Just now</Text>
+                </View>
+                <View style={styles.contactStatusRow}>
+                  <Feather name="eye" size={14} color="#10B981" />
+                  <Text style={styles.contactStatusText}>Watching</Text>
+                  <Feather name="chevron-right" size={16} color="#9CA3AF" style={{ marginLeft: 8 }} />
                 </View>
               </View>
-              <Text style={[styles.contactTime, { color: '#10B981' }]}>Last updated: Just now</Text>
+              {i < contacts.length - 1 && <View style={styles.listDivider} />}
             </View>
-            <View style={styles.contactStatusRow}>
-              <Feather name="eye" size={14} color="#10B981" />
-              <Text style={styles.contactStatusText}>Watching</Text>
-              <Feather name="chevron-right" size={16} color="#9CA3AF" style={{ marginLeft: 8 }} />
-            </View>
-          </View>
+          ))}
 
-          <View style={styles.listDivider} />
-
-          {/* Contact 2 */}
-          <View style={styles.contactRow}>
-            <View style={styles.contactAvatar}>
-              <Image source={{ uri: 'https://i.pravatar.cc/100?img=11' }} style={styles.avatarImg} />
+          {contacts.length === 0 && (
+            <View style={{ alignItems: 'center', padding: 20 }}>
+              <Text style={{ color: '#9CA3AF' }}>No trusted contacts added yet.</Text>
             </View>
-            <View style={styles.contactInfo}>
-              <Text style={styles.contactName}>Rahul Sharma</Text>
-              <Text style={styles.contactTime}>Last updated: 10 sec ago</Text>
-            </View>
-            <View style={styles.contactStatusRow}>
-              <Feather name="eye" size={14} color="#10B981" />
-              <Text style={styles.contactStatusText}>Watching</Text>
-              <Feather name="chevron-right" size={16} color="#9CA3AF" style={{ marginLeft: 8 }} />
-            </View>
-          </View>
-
-          <View style={styles.listDivider} />
-
-          {/* Contact 3 */}
-          <View style={styles.contactRow}>
-            <View style={styles.contactAvatar}>
-              <Image source={{ uri: 'https://i.pravatar.cc/100?img=9' }} style={styles.avatarImg} />
-            </View>
-            <View style={styles.contactInfo}>
-              <Text style={styles.contactName}>Meera Iyer</Text>
-              <Text style={styles.contactTime}>Last updated: 15 sec ago</Text>
-            </View>
-            <View style={styles.contactStatusRow}>
-              <Feather name="eye" size={14} color="#10B981" />
-              <Text style={styles.contactStatusText}>Watching</Text>
-              <Feather name="chevron-right" size={16} color="#9CA3AF" style={{ marginLeft: 8 }} />
-            </View>
-          </View>
-
-          <View style={styles.listDivider} />
+          )}
           
-          <TouchableOpacity style={styles.viewAllBtn}>
-            <Text style={styles.viewAllBtnText}>View All Contacts</Text>
+          <TouchableOpacity 
+            style={styles.viewAllBtn}
+            onPress={() => router.push('/(drawer)/profile')}
+          >
+            <Text style={styles.viewAllBtnText}>Manage Contacts</Text>
             <Feather name="chevron-right" size={16} color="#6D28D9" />
           </TouchableOpacity>
         </View>
@@ -236,7 +269,7 @@ export default function LiveTrackingScreen() {
         <View style={{ height: bottomPadding }} />
 
       </ScrollView>
-    </SafeAreaView>
+    </View>
   );
 }
 

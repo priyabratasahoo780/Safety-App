@@ -37,6 +37,11 @@ export default function ProfileScreen() {
   const [newPhone, setNewPhone] = useState('');
   const [isAdding, setIsAdding] = useState(false);
 
+  // Edit Profile State
+  const [isEditingProfile, setIsEditingProfile] = useState(false);
+  const [editFullName, setEditFullName] = useState('');
+  const [editPhone, setEditPhone] = useState('');
+
   // Settings state
   const [smsFallback, setSmsFallback] = useState(true);
   const [bgTracking, setBgTracking] = useState(true);
@@ -116,6 +121,26 @@ export default function ProfileScreen() {
     }
   };
 
+  const handleEditProfile = () => {
+    setEditFullName(userProfile?.fullName || '');
+    setEditPhone(userProfile?.phone || '');
+    setIsEditingProfile(true);
+  };
+
+  const handleSaveProfile = async () => {
+    try {
+      if (!user?.id) return;
+      await authService.updateUserProfile(user.id, {
+        fullName: editFullName,
+        phone: editPhone
+      });
+      setUserProfile((prev: any) => ({ ...prev, fullName: editFullName, phone: editPhone }));
+      setIsEditingProfile(false);
+    } catch (e) {
+      Alert.alert('Error', 'Failed to save profile changes');
+    }
+  };
+
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
       <StatusBar style="dark" />
@@ -131,12 +156,49 @@ export default function ProfileScreen() {
               {userProfile?.fullName ? userProfile.fullName.charAt(0).toUpperCase() : 'U'}
             </Text>
           </View>
-          <Text style={styles.profileName}>{userProfile?.fullName || 'User Profile'}</Text>
-          <Text style={styles.profileDetails}>
-            {(userProfile?.phone || userProfile?.email) ?
-              `${userProfile?.phone || 'No phone'}  •  ${userProfile?.email || 'No email'}`
-              : 'Add contact details'}
-          </Text>
+          
+          {isEditingProfile ? (
+            <View style={{ width: '100%', alignItems: 'center', marginTop: 10 }}>
+              <TextInput
+                style={[styles.formInput, { width: '80%', textAlign: 'center', marginBottom: 10 }]}
+                placeholder="Full Name"
+                value={editFullName}
+                onChangeText={setEditFullName}
+              />
+              <TextInput
+                style={[styles.formInput, { width: '80%', textAlign: 'center', marginBottom: 15 }]}
+                placeholder="Phone Number"
+                keyboardType="phone-pad"
+                value={editPhone}
+                onChangeText={setEditPhone}
+              />
+              <View style={{ flexDirection: 'row', gap: 10 }}>
+                <TouchableOpacity style={styles.saveContactBtn} onPress={handleSaveProfile}>
+                  <Text style={styles.saveContactText}>Save</Text>
+                </TouchableOpacity>
+                <TouchableOpacity 
+                  style={[styles.saveContactBtn, { backgroundColor: '#F3F4F6' }]} 
+                  onPress={() => setIsEditingProfile(false)}
+                >
+                  <Text style={[styles.saveContactText, { color: '#EF4444' }]}>Cancel</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          ) : (
+            <>
+              <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 10 }}>
+                <Text style={styles.profileName}>{userProfile?.fullName || 'User Profile'}</Text>
+                <TouchableOpacity onPress={handleEditProfile} style={{ marginLeft: 8 }}>
+                  <Feather name="edit-2" size={16} color="#6D28D9" />
+                </TouchableOpacity>
+              </View>
+              <Text style={styles.profileDetails}>
+                {(userProfile?.phone || userProfile?.email) ?
+                  `${userProfile?.phone || 'No phone'}  •  ${userProfile?.email || 'No email'}`
+                  : 'Add contact details'}
+              </Text>
+            </>
+          )}
         </View>
 
         {/* Trusted Contacts Manager */}

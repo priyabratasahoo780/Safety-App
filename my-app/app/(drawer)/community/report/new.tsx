@@ -1,10 +1,12 @@
 import React, { useState } from 'react';
-import { StyleSheet, View, Text, TextInput, TouchableOpacity, ScrollView, SafeAreaView, KeyboardAvoidingView, Platform } from 'react-native';
+import { StyleSheet, View, Text, TextInput, TouchableOpacity, ScrollView, KeyboardAvoidingView, Platform } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { Feather } from '@expo/vector-icons';
 import { StatusBar } from 'expo-status-bar';
 import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
 import { db } from '../../../../src/config/firebaseConfig';
+import * as Location from 'expo-location';
 
 const CATEGORIES = [
   { id: 'harassment', label: 'Harassment', color: '#EF4444' },
@@ -15,6 +17,7 @@ const CATEGORIES = [
 
 export default function ReportIncidentScreen() {
   const router = useRouter();
+  const insets = useSafeAreaInsets();
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
   const [location, setLocation] = useState('');
   const [description, setDescription] = useState('');
@@ -25,6 +28,17 @@ export default function ReportIncidentScreen() {
     
     setIsSubmitting(true);
     try {
+      // 1. Get exact GPS location
+      let { status } = await Location.requestForegroundPermissionsAsync();
+      if (status !== 'granted') {
+        alert('Permission to access location was denied');
+        setIsSubmitting(false);
+        return;
+      }
+
+      let currentLoc = await Location.getCurrentPositionAsync({});
+
+      // 2. Submit to Firebase with real coordinates
       await addDoc(collection(db, 'community_reports'), {
         category: CATEGORIES.find(c => c.id === selectedCategory)?.label || 'Other',
         location,
@@ -32,6 +46,8 @@ export default function ReportIncidentScreen() {
         votes: 0,
         myVote: null,
         verified: false,
+        latitude: currentLoc.coords.latitude,
+        longitude: currentLoc.coords.longitude,
         createdAt: serverTimestamp(),
       });
       router.back();
@@ -42,7 +58,7 @@ export default function ReportIncidentScreen() {
   };
 
   return (
-    <SafeAreaView style={styles.container}>
+    <View style={[styles.container, { paddingTop: insets.top }]}>
       <StatusBar style="dark" />
       
       {/* Header */}
@@ -132,7 +148,7 @@ export default function ReportIncidentScreen() {
           </TouchableOpacity>
         </View>
       </KeyboardAvoidingView>
-    </SafeAreaView>
+    </View>
   );
 }
 
