@@ -8,14 +8,18 @@ import {
   TextInput,
   Switch,
   Alert,
+  Share,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { Feather } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import * as Clipboard from 'expo-clipboard';
 import { useUser, useAuth } from '@clerk/clerk-expo';
 import { authService } from '../../../src/services/authService';
+import { useGuardianConnections } from '../../../features/guardian/hooks/useGuardianConnections';
+import { guardianService } from '../../../features/guardian/services/guardianService';
 
 interface Contact {
   id: string;
@@ -33,9 +37,57 @@ export default function ProfileScreen() {
   const [userProfile, setUserProfile] = useState<any>(null);
 
   // New contact form state
+  const [searchId, setSearchId] = useState('');
+  const [searchResult, setSearchResult] = useState<any>(null);
+  const [searchError, setSearchError] = useState('');
+  const [isAdding, setIsAdding] = useState(false);
+  
+  // Manual Contact State
   const [newName, setNewName] = useState('');
   const [newPhone, setNewPhone] = useState('');
-  const [isAdding, setIsAdding] = useState(false);
+
+  const {
+    pendingIncoming,
+    pendingOutgoing,
+    activeConnections,
+    guardianProfiles,
+    sendRequest,
+    acceptRequest,
+    rejectRequest,
+  } = useGuardianConnections(user?.id || null);
+
+  const handleSearchGuardian = async () => {
+    setSearchError('');
+    setSearchResult(null);
+    if (!searchId.trim()) return;
+    try {
+      const res = await guardianService.searchUserBySafeSphereId(searchId);
+      if (res) {
+        if (res.uid === user?.id) {
+          setSearchError("You cannot connect to yourself.");
+        } else {
+          setSearchResult(res);
+        }
+      } else {
+        setSearchError("No user found with this ID.");
+      }
+    } catch (e: any) {
+      setSearchError(e.message);
+    }
+  };
+
+  const handleSendRequest = async () => {
+    if (!searchResult || !user?.id) return;
+    try {
+      await sendRequest(searchResult.uid, userProfile?.fullName || 'A User');
+      Alert.alert('Success', 'Guardian Request sent!');
+      setSearchResult(null);
+      setSearchId('');
+      setIsAdding(false);
+    } catch (e: any) {
+      Alert.alert('Error', e.message);
+    }
+  };
 
   // Edit Profile State
   const [isEditingProfile, setIsEditingProfile] = useState(false);
@@ -104,7 +156,7 @@ export default function ProfileScreen() {
     setContacts(prev => [...prev, newContact]);
     setNewName('');
     setNewPhone('');
-    setIsAdding(false);
+    Alert.alert('Success', 'Manual contact added for SMS fallback!');
   };
 
   const handleDeleteContact = (id: string) => {
@@ -138,6 +190,25 @@ export default function ProfileScreen() {
       setIsEditingProfile(false);
     } catch (e) {
       Alert.alert('Error', 'Failed to save profile changes');
+    }
+  };
+
+  const copyToClipboard = async () => {
+    if (userProfile?.safeSphereId) {
+      await Clipboard.setStringAsync(userProfile.safeSphereId);
+      Alert.alert('Copied!', 'SafeSphere ID copied to clipboard.');
+    }
+  };
+
+  const shareSafeSphereId = async () => {
+    if (userProfile?.safeSphereId) {
+      try {
+        await Share.share({
+          message: `Connect with me on SafeSphere! My Guardian ID is: ${userProfile.safeSphereId}`,
+        });
+      } catch (error: any) {
+        Alert.alert('Error', error.message);
+      }
     }
   };
 
@@ -201,22 +272,62 @@ export default function ProfileScreen() {
           )}
         </View>
 
+        {/* SafeSphere ID Card */}
+        {userProfile?.safeSphereId && (
+          <View style={[styles.sectionCard, { backgroundColor: '#6D28D9', borderColor: '#6D28D9' }]}>
+            <View style={{ alignItems: 'center', paddingVertical: 10 }}>
+              <Text style={{ color: '#E5E7EB', fontSize: 13, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 1, marginBottom: 8 }}>
+                My SafeSphere ID
+              </Text>
+              <Text style={{ color: '#FFFFFF', fontSize: 24, fontWeight: '900', letterSpacing: 3, marginBottom: 16 }}>
+                {userProfile.safeSphereId}
+              </Text>
+              <Text style={{ color: '#C4B5FD', fontSize: 12, textAlign: 'center', marginBottom: 20, paddingHorizontal: 10, lineHeight: 18 }}>
+                Share this ID only with people you trust. They can use it to send you a Guardian connection request.
+              </Text>
+              
+              <View style={{ flexDirection: 'row', gap: 15 }}>
+                <TouchableOpacity 
+                  style={{ backgroundColor: 'rgba(255,255,255,0.2)', paddingVertical: 10, paddingHorizontal: 20, borderRadius: 12, flexDirection: 'row', alignItems: 'center', gap: 8 }}
+                  onPress={copyToClipboard}
+                >
+                  <Feather name="copy" size={16} color="#FFFFFF" />
+                  <Text style={{ color: '#FFFFFF', fontWeight: '700', fontSize: 14 }}>Copy ID</Text>
+                </TouchableOpacity>
+                <TouchableOpacity 
+                  style={{ backgroundColor: '#FFFFFF', paddingVertical: 10, paddingHorizontal: 20, borderRadius: 12, flexDirection: 'row', alignItems: 'center', gap: 8 }}
+                  onPress={shareSafeSphereId}
+                >
+                  <Feather name="share" size={16} color="#6D28D9" />
+                  <Text style={{ color: '#6D28D9', fontWeight: '700', fontSize: 14 }}>Share ID</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          </View>
+        )}
+
         {/* Trusted Contacts Manager */}
         <View style={styles.sectionCard}>
           <View style={styles.sectionHeader}>
-            <Text style={styles.sectionTitle}>Trusted Guardians</Text>
+            <Text style={styles.sectionTitle}>Guardian Connections</Text>
             {!isAdding ? (
               <TouchableOpacity
                 style={styles.addBtn}
                 onPress={() => setIsAdding(true)}
               >
                 <Feather name="plus" size={16} color="#6D28D9" />
-                <Text style={styles.addBtnText}>Add</Text>
+                <Text style={styles.addBtnText}>Connect</Text>
               </TouchableOpacity>
             ) : (
               <TouchableOpacity
                 style={styles.addBtn}
-                onPress={() => setIsAdding(false)}
+                onPress={() => {
+                  setIsAdding(false);
+                  setSearchResult(null);
+                  setSearchId('');
+                  setNewName('');
+                  setNewPhone('');
+                }}
               >
                 <Text style={[styles.addBtnText, { color: '#EF4444' }]}>Cancel</Text>
               </TouchableOpacity>
@@ -225,6 +336,41 @@ export default function ProfileScreen() {
 
           {isAdding && (
             <View style={styles.addForm}>
+              <Text style={{ color: '#FFFFFF', fontWeight: 'bold', fontSize: 16, marginBottom: 10 }}>1. Connect via SafeSphere ID (Recommended)</Text>
+              <Text style={{ color: '#9CA3AF', fontSize: 12, marginBottom: 10 }}>Search for a user by their SafeSphere ID (e.g. SSF-XXXX-XXXX) to send an App Guardian request.</Text>
+              <View style={{ flexDirection: 'row', gap: 10 }}>
+                <TextInput
+                  style={[styles.formInput, { flex: 1, marginBottom: 0 }]}
+                  placeholder="Enter Guardian ID"
+                  placeholderTextColor="#9CA3AF"
+                  value={searchId}
+                  onChangeText={setSearchId}
+                  autoCapitalize="characters"
+                />
+                <TouchableOpacity style={[styles.saveContactBtn, { paddingHorizontal: 15, marginTop: 0 }]} onPress={handleSearchGuardian}>
+                  <Text style={styles.saveContactText}>Find</Text>
+                </TouchableOpacity>
+              </View>
+
+              {searchError ? (
+                <Text style={{ color: '#EF4444', fontSize: 12, marginTop: 10 }}>{searchError}</Text>
+              ) : null}
+
+              {searchResult && (
+                <View style={{ marginTop: 15, padding: 15, backgroundColor: 'rgba(109,40,217,0.1)', borderRadius: 12, borderWidth: 1, borderColor: '#6D28D9' }}>
+                  <Text style={{ color: '#FFFFFF', fontWeight: 'bold', fontSize: 16 }}>{searchResult.fullName}</Text>
+                  <Text style={{ color: '#C4B5FD', fontSize: 12, marginTop: 4 }}>ID: {searchResult.safeSphereId}</Text>
+                  
+                  <TouchableOpacity style={[styles.saveContactBtn, { marginTop: 15 }]} onPress={handleSendRequest}>
+                    <Text style={styles.saveContactText}>Send Guardian Request</Text>
+                  </TouchableOpacity>
+                </View>
+              )}
+
+              <View style={{ height: 1, backgroundColor: '#374151', marginVertical: 25 }} />
+
+              <Text style={{ color: '#FFFFFF', fontWeight: 'bold', fontSize: 16, marginBottom: 10 }}>2. Add Manual Contact (For SMS Fallback)</Text>
+              <Text style={{ color: '#9CA3AF', fontSize: 12, marginBottom: 15 }}>Add a phone number to send automated SMS alerts during an emergency.</Text>
               <TextInput
                 style={styles.formInput}
                 placeholder="Guardian Name"
@@ -241,34 +387,93 @@ export default function ProfileScreen() {
                 onChangeText={setNewPhone}
               />
               <TouchableOpacity style={styles.saveContactBtn} onPress={handleAddContact}>
-                <Text style={styles.saveContactText}>Save Contact</Text>
+                <Text style={styles.saveContactText}>Save Manual Contact</Text>
               </TouchableOpacity>
             </View>
           )}
 
-          <View style={styles.contactsList}>
-            {contacts.map(contact => (
-              <View key={contact.id} style={styles.contactRow}>
-                <View style={styles.contactInfo}>
-                  <View style={styles.miniAvatar}>
-                    <Text style={styles.miniAvatarText}>
-                      {contact.name.charAt(0)}
-                    </Text>
+          {/* Pending Incoming Requests */}
+          {pendingIncoming.length > 0 && (
+            <View style={{ marginTop: 15 }}>
+              <Text style={{ color: '#C4B5FD', fontSize: 12, fontWeight: '700', marginBottom: 10, textTransform: 'uppercase' }}>Pending Requests</Text>
+              {pendingIncoming.map((req) => (
+                <View key={req.id} style={[styles.contactRow, { backgroundColor: 'rgba(245,158,11,0.1)', borderColor: '#F59E0B', borderWidth: 1 }]}>
+                  <View style={styles.contactInfo}>
+                    <View style={[styles.miniAvatar, { backgroundColor: '#F59E0B' }]}>
+                      <Text style={styles.miniAvatarText}>{req.requesterName?.charAt(0) || '?'}</Text>
+                    </View>
+                    <View>
+                      <Text style={styles.contactName}>{req.requesterName || 'Unknown'}</Text>
+                      <Text style={styles.contactPhone}>ID: {guardianProfiles[req.requesterUserId]?.safeSphereId || 'Unknown'} • Wants to connect</Text>
+                    </View>
                   </View>
-                  <View>
-                    <Text style={styles.contactName}>{contact.name}</Text>
-                    <Text style={styles.contactPhone}>{contact.phone}</Text>
+                  <View style={{ flexDirection: 'row', gap: 10 }}>
+                    <TouchableOpacity onPress={() => rejectRequest(req.id)}>
+                      <Feather name="x-circle" size={24} color="#EF4444" />
+                    </TouchableOpacity>
+                    <TouchableOpacity onPress={() => acceptRequest(req.id, req.requesterUserId)}>
+                      <Feather name="check-circle" size={24} color="#10B981" />
+                    </TouchableOpacity>
                   </View>
                 </View>
-                <TouchableOpacity
-                  style={styles.deleteBtn}
-                  onPress={() => handleDeleteContact(contact.id)}
-                >
-                  <Feather name="trash-2" size={16} color="#EF4444" />
-                </TouchableOpacity>
-              </View>
-            ))}
+              ))}
+            </View>
+          )}
+
+          {/* Active Guardian Connections */}
+          <View style={[styles.contactsList, { marginTop: pendingIncoming.length > 0 ? 20 : 10 }]}>
+            <Text style={{ color: '#C4B5FD', fontSize: 12, fontWeight: '700', marginBottom: 10, textTransform: 'uppercase' }}>My Guardians</Text>
+            
+            {activeConnections.length === 0 ? (
+              <Text style={{ color: '#9CA3AF', fontSize: 13, fontStyle: 'italic', paddingVertical: 10 }}>No Guardians connected yet.</Text>
+            ) : (
+              activeConnections.map((conn) => {
+                const profile = guardianProfiles[conn.guardianUserId] || {};
+                const name = profile.fullName || 'Guardian';
+                return (
+                  <View key={conn.id} style={styles.contactRow}>
+                    <View style={styles.contactInfo}>
+                      <View style={[styles.miniAvatar, { backgroundColor: '#10B981' }]}>
+                        <Text style={styles.miniAvatarText}>{name.charAt(0)}</Text>
+                      </View>
+                      <View>
+                        <Text style={styles.contactName}>{name}</Text>
+                        <Text style={styles.contactPhone}>ID: {profile.safeSphereId || 'Unknown'}</Text>
+                      </View>
+                    </View>
+                    <Text style={{ color: '#10B981', fontSize: 11, fontWeight: 'bold' }}>• Active</Text>
+                  </View>
+                );
+              })
+            )}
           </View>
+          {/* Manual Contacts (Legacy) */}
+          {contacts.length > 0 && (
+            <View style={[styles.contactsList, { marginTop: 20 }]}>
+              <Text style={{ color: '#C4B5FD', fontSize: 12, fontWeight: '700', marginBottom: 10, textTransform: 'uppercase' }}>Manual SMS Contacts</Text>
+              {contacts.map((contact, index) => (
+                <View key={contact.id || `contact-${index}`} style={styles.contactRow}>
+                  <View style={styles.contactInfo}>
+                    <View style={styles.miniAvatar}>
+                      <Text style={styles.miniAvatarText}>
+                        {contact.name.charAt(0)}
+                      </Text>
+                    </View>
+                    <View>
+                      <Text style={styles.contactName}>{contact.name}</Text>
+                      <Text style={styles.contactPhone}>{contact.phone}</Text>
+                    </View>
+                  </View>
+                  <TouchableOpacity
+                    style={styles.deleteBtn}
+                    onPress={() => handleDeleteContact(contact.id)}
+                  >
+                    <Feather name="trash-2" size={16} color="#EF4444" />
+                  </TouchableOpacity>
+                </View>
+              ))}
+            </View>
+          )}
         </View>
 
         {/* Emergency Triggers Settings */}

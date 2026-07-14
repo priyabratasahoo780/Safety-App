@@ -11,6 +11,7 @@ export default function AddContactScreen() {
   const [name, setName] = useState('');
   const [phone, setPhone] = useState('');
   const [relation, setRelation] = useState('Family');
+  const [safeSphereId, setSafeSphereId] = useState('');
   const [loading, setLoading] = useState(false);
 
   const handleSaveContact = async () => {
@@ -28,6 +29,7 @@ export default function AddContactScreen() {
         name,
         phone,
         relation,
+        safeSphereId: safeSphereId.trim().toUpperCase() || undefined,
       };
 
       await authService.updateUserProfile({
@@ -96,6 +98,18 @@ export default function AddContactScreen() {
               value={relation}
               onChangeText={setRelation}
               placeholderTextColor="#9CA3AF"
+            />
+          </View>
+
+          <View style={styles.formGroup}>
+            <Text style={styles.label}>SafeSphere ID (Optional)</Text>
+            <TextInput
+              style={styles.input}
+              placeholder="SSF-XXXX-XXXX"
+              value={safeSphereId}
+              onChangeText={setSafeSphereId}
+              placeholderTextColor="#9CA3AF"
+              autoCapitalize="characters"
             />
           </View>
 

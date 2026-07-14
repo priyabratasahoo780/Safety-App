@@ -48,10 +48,10 @@ export default function NavigateScreen() {
       const start = `${location.longitude},${location.latitude}`;
       const end = `${destinationCoords.longitude},${destinationCoords.latitude}`;
       
-      const drivingRes = await fetch(`https://router.project-osrm.org/route/v1/driving/${start};${end}?overview=full&geometries=geojson`);
+      const drivingRes = await fetch(`https://router.project-osrm.org/route/v1/driving/${start};${end}?overview=simplified&geometries=geojson`);
       const drivingData = await drivingRes.json();
       
-      const walkingRes = await fetch(`https://router.project-osrm.org/route/v1/foot/${start};${end}?overview=full&geometries=geojson`);
+      const walkingRes = await fetch(`https://router.project-osrm.org/route/v1/foot/${start};${end}?overview=simplified&geometries=geojson`);
       const walkingData = await walkingRes.json();
       
       const newRoutes: RouteOption[] = [];

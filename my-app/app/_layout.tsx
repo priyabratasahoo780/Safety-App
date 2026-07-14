@@ -8,8 +8,11 @@ import "react-native-reanimated";
 import { useEffect } from "react";
 import { useColorScheme } from "@/hooks/use-color-scheme";
 import { authService } from "@/src/services/authService";
-import { Platform, View, StyleSheet } from "react-native";
+import { Platform, View, StyleSheet, LogBox } from "react-native";
 
+LogBox.ignoreLogs([
+  "expo-notifications: Android Push notifications",
+]);
 const publishableKey = process.env.EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY!;
 
 // Auth guard: sirf drawer ko protect karta hai

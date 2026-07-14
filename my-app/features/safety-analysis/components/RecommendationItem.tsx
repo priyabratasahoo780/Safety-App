@@ -22,7 +22,7 @@ export const RecommendationItem: React.FC<RecommendationItemProps> = ({ item, on
         router.push('/(drawer)/(tabs)/navigate');
         break;
       case 'start_timer':
-        Alert.alert('Info', 'Safety Timer will be available soon.');
+        router.push('/(drawer)/safety-timer');
         break;
       case 'share_now':
         // Navigate to existing live tracking

@@ -78,7 +78,7 @@ export default function LiveTrackingScreen() {
 
       locationSubscription = await Location.watchPositionAsync(
         {
-          accuracy: Location.Accuracy.High,
+          accuracy: Location.Accuracy.BestForNavigation,
           timeInterval: 5000,
           distanceInterval: 5,
         },
@@ -90,9 +90,17 @@ export default function LiveTrackingScreen() {
               loc.coords.latitude,
               loc.coords.longitude
             );
-            if (dist > 0) setDistance(prev => prev + dist);
+            
+            // Only accumulate distance if moved more than 5 meters (0.005 km)
+            // This prevents stationary GPS jitter from artificially inflating the distance traveled
+            if (dist > 0.005) {
+              setDistance(prev => prev + dist);
+              lastLocationRef.current = loc;
+            }
+          } else {
+            // First time getting location
+            lastLocationRef.current = loc;
           }
-          lastLocationRef.current = loc;
           setLocation(loc);
         }
       );

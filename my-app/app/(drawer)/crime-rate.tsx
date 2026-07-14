@@ -5,7 +5,7 @@ import { DrawerToggleButton } from '@react-navigation/drawer';
 import { Feather } from '@expo/vector-icons';
 import { ShieldAlert, MapPin, AlertTriangle, Activity } from 'lucide-react-native';
 import * as Location from 'expo-location';
-import { collection, getDocs, query, orderBy } from 'firebase/firestore';
+import { collection, getDocs, query, orderBy, limit } from 'firebase/firestore';
 import { db } from '../../src/config/firebaseConfig';
 import { getHistoricalBaseScore } from '../../constants/historicalCrimeData';
 
@@ -59,8 +59,8 @@ export default function CrimeRateScreen() {
       }
       
       try {
-        // Fetch Location
-        let location = await Location.getCurrentPositionAsync({});
+        // Fetch Location faster with Balanced accuracy
+        let location = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
         let geocode = await Location.reverseGeocodeAsync({
           latitude: location.coords.latitude,
           longitude: location.coords.longitude
@@ -77,8 +77,8 @@ export default function CrimeRateScreen() {
         // Get Historical Base Score from NCRB Dataset (2001-2021 average)
         const historicalBaseScore = getHistoricalBaseScore(currentRegion);
 
-        // Fetch Live Crime Data
-        const q = query(collection(db, 'community_reports'), orderBy('createdAt', 'desc'));
+        // Fetch Live Crime Data (limited to 100 for speed)
+        const q = query(collection(db, 'community_reports'), orderBy('createdAt', 'desc'), limit(100));
         const snapshot = await getDocs(q);
         
         let harassmentCount = 0;

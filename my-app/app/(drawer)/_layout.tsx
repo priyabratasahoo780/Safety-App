@@ -1,8 +1,19 @@
 import { Drawer } from 'expo-router/drawer';
 import { Feather } from '@expo/vector-icons';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
+import { useEmergencyListener } from '../../features/emergency/hooks/useEmergencyListener';
+import { useEffect } from 'react';
+import { authService } from '../../src/services/authService';
 
 export default function DrawerLayout() {
+  // Global listener for Guardian incoming emergencies
+  useEmergencyListener();
+
+  useEffect(() => {
+    // Register device for push notifications when they enter the authenticated area
+    authService.registerForPushNotificationsAsync().catch(console.error);
+  }, []);
+
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
       <Drawer
@@ -108,6 +119,12 @@ export default function DrawerLayout() {
         />
         <Drawer.Screen
           name="notifications"
+          options={{
+            drawerItemStyle: { display: 'none' }, // Hide from Drawer menu
+          }}
+        />
+        <Drawer.Screen
+          name="safety-timer"
           options={{
             drawerItemStyle: { display: 'none' }, // Hide from Drawer menu
           }}

@@ -1,33 +1,199 @@
-import React, { useEffect, useState } from 'react';
-import { View, Text, StyleSheet, Pressable, useWindowDimensions } from 'react-native';
+import React, { useEffect, useState, useRef } from 'react';
+import { View, Text, StyleSheet, Pressable, useWindowDimensions, Animated } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
-import { Phone, PhoneOff, UserRound } from 'lucide-react-native';
+import { Phone, PhoneOff, UserRound, Settings } from 'lucide-react-native';
 import { useRouter } from 'expo-router';
 import * as Haptics from 'expo-haptics';
+import * as Speech from 'expo-speech';
+import { Audio } from 'expo-av';
+import * as FileSystem from 'expo-file-system';
+import { AIFakeCallService } from '../../features/emergency/services/aiFakeCallService';
 
 export default function FakeCallScreen() {
   const router = useRouter();
-  const { width } = useWindowDimensions();
+  
+  // Call States: ringing -> connecting -> speaking/listening/thinking
+  const [callState, setCallState] = useState<'ringing' | 'connecting' | 'speaking' | 'listening' | 'thinking'>('ringing');
   const [callDuration, setCallDuration] = useState(0);
+  
+  const recordingRef = useRef<Audio.Recording | null>(null);
+  const isComponentMounted = useRef(true);
+  const timerRef = useRef<NodeJS.Timeout | null>(null);
 
+  // Ringing animation
+  const pulseAnim = useRef(new Animated.Value(1)).current;
+
+  // Setup Ringing Vibration and Animation
   useEffect(() => {
-    // Vibrate when "ringing" starts
-    const vibrateInterval = setInterval(() => {
-      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
-    }, 1500);
+    let vibrateInterval: NodeJS.Timeout;
+    
+    if (callState === 'ringing') {
+      vibrateInterval = setInterval(() => {
+        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
+      }, 1500);
 
-    return () => clearInterval(vibrateInterval);
+      Animated.loop(
+        Animated.sequence([
+          Animated.timing(pulseAnim, { toValue: 1.1, duration: 800, useNativeDriver: true }),
+          Animated.timing(pulseAnim, { toValue: 1, duration: 800, useNativeDriver: true })
+        ])
+      ).start();
+    } else {
+      pulseAnim.stopAnimation();
+    }
+
+    return () => {
+      if (vibrateInterval) clearInterval(vibrateInterval);
+    };
+  }, [callState]);
+
+  // Cleanup on unmount
+  useEffect(() => {
+    isComponentMounted.current = true;
+    return () => {
+      isComponentMounted.current = false;
+      if (timerRef.current) clearInterval(timerRef.current);
+      Speech.stop();
+      if (recordingRef.current) {
+        recordingRef.current.stopAndUnloadAsync().catch(() => {});
+      }
+    };
   }, []);
 
-  useEffect(() => {
-    // Once "answered", stop vibration and start timer.
-    // We'll just simulate it being already answered for simplicity.
-    const timer = setInterval(() => {
+  const handleAcceptCall = async () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    setCallState('connecting');
+    
+    // Start duration timer
+    timerRef.current = setInterval(() => {
       setCallDuration((prev) => prev + 1);
     }, 1000);
-    return () => clearInterval(timer);
-  }, []);
+
+    // Initialize AI Conversation
+    AIFakeCallService.getInstance().resetHistory();
+    
+    // Simulate connection delay
+    await new Promise(r => setTimeout(r, 800));
+    if (!isComponentMounted.current) return;
+    
+    speakAndThenListen("Beta tum theek ho? Kahan par ho abhi?");
+  };
+
+  const handleEndCall = () => {
+    isComponentMounted.current = false;
+    Speech.stop();
+    if (recordingRef.current) {
+      recordingRef.current.stopAndUnloadAsync().catch(() => {});
+    }
+    if (timerRef.current) clearInterval(timerRef.current);
+    
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    router.back();
+  };
+
+  const speakAndThenListen = (text: string) => {
+    if (!isComponentMounted.current) return;
+    setCallState('speaking');
+    Speech.speak(text, {
+      language: 'hi-IN',
+      pitch: 0.9,
+      rate: 0.95,
+      onDone: () => {
+        if (isComponentMounted.current) {
+          startListeningChunk();
+        }
+      },
+      onError: () => {
+        if (isComponentMounted.current) {
+          startListeningChunk();
+        }
+      }
+    });
+  };
+
+  const startListeningChunk = async () => {
+    if (!isComponentMounted.current) return;
+    setCallState('listening');
+
+    try {
+      const permission = await Audio.requestPermissionsAsync();
+      if (permission.status !== 'granted') throw new Error('No mic permission');
+
+      await Audio.setAudioModeAsync({
+        allowsRecordingIOS: true,
+        playsInSilentModeIOS: true,
+      });
+
+      const recording = new Audio.Recording();
+      await recording.prepareToRecordAsync({
+        isMeteringEnabled: true,
+        android: {
+          extension: '.m4a',
+          outputFormat: 2,
+          audioEncoder: 3,
+          sampleRate: 16000,
+          numberOfChannels: 1,
+          bitRate: 64000,
+        },
+        ios: {
+          extension: '.m4a',
+          audioQuality: 0x7F,
+          sampleRate: 16000,
+          numberOfChannels: 1,
+          bitRate: 64000,
+          linearPCMBitDepth: 16,
+          linearPCMIsBigEndian: false,
+          linearPCMIsFloat: false,
+        },
+        web: {}
+      });
+
+      recordingRef.current = recording;
+      await recording.startAsync();
+
+      // Listen for 6 seconds to give user time to reply
+      setTimeout(async () => {
+        if (!isComponentMounted.current) return;
+        await stopListeningAndProcess(recording);
+      }, 6000);
+
+    } catch (error) {
+      console.warn("Failed to start recording chunk", error);
+      setTimeout(() => speakAndThenListen("Mujhe kuch sunai nahi diya, ek baar phir se bolo."), 2000);
+    }
+  };
+
+  const stopListeningAndProcess = async (recording: Audio.Recording) => {
+    try {
+      setCallState('thinking');
+      await recording.stopAndUnloadAsync();
+      recordingRef.current = null;
+
+      const uri = recording.getURI();
+      if (!uri) {
+        speakAndThenListen("Mujhe samajh nahi aaya.");
+        return;
+      }
+
+      // Convert to base64 reliably using expo-file-system
+      const base64Data = await FileSystem.readAsStringAsync(uri, {
+        encoding: FileSystem.EncodingType.Base64,
+      });
+
+      // Get AI Response
+      const aiResponse = await AIFakeCallService.getInstance().getResponseFromAudio(base64Data);
+      
+      if (isComponentMounted.current) {
+        speakAndThenListen(aiResponse);
+      }
+    } catch (error) {
+      console.warn("Error processing audio chunk", error);
+      if (isComponentMounted.current) {
+        speakAndThenListen("Tum ho wahan?");
+      }
+    }
+  };
 
   const formatTime = (seconds: number) => {
     const m = Math.floor(seconds / 60);
@@ -35,12 +201,29 @@ export default function FakeCallScreen() {
     return `${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
   };
 
+  const getStatusText = () => {
+    switch(callState) {
+      case 'ringing': return 'Incoming...';
+      case 'connecting': return 'Connecting...';
+      case 'speaking': return 'Dad is speaking...';
+      case 'listening': return 'Dad is listening...';
+      case 'thinking': return '...';
+      default: return 'Connected';
+    }
+  };
+
   return (
     <SafeAreaView style={styles.container}>
       <StatusBar style="light" />
       
       <View style={styles.header}>
-        <Text style={styles.callerStatus}>{formatTime(callDuration)}</Text>
+        <View style={styles.headerLeft} />
+        <Text style={styles.callerStatus}>
+          {callState === 'ringing' ? 'Mobile' : formatTime(callDuration)}
+        </Text>
+        <Pressable style={styles.headerRight} onPress={() => router.push('/(drawer)/offline-models')}>
+          {callState === 'ringing' && <Settings size={24} color="#8E8E93" />}
+        </Pressable>
       </View>
 
       <View style={styles.callerInfo}>
@@ -49,18 +232,38 @@ export default function FakeCallScreen() {
         </View>
         <Text style={styles.callerName}>Dad</Text>
         <Text style={styles.callerType}>Mobile</Text>
+        
+        {callState !== 'ringing' && (
+          <Text style={[
+            styles.stateIndicator, 
+            callState === 'listening' ? styles.stateListening : null
+          ]}>
+            {getStatusText()}
+          </Text>
+        )}
       </View>
 
+      {/* Conditional Action Buttons */}
       <View style={styles.actions}>
-        <Pressable 
-          style={styles.endCallButton}
-          onPress={() => {
-            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-            router.back();
-          }}
-        >
-          <PhoneOff size={32} color="#FFFFFF" />
-        </Pressable>
+        {callState === 'ringing' ? (
+          <View style={styles.ringingActions}>
+            <Pressable style={styles.declineButton} onPress={handleEndCall}>
+              <PhoneOff size={32} color="#FFFFFF" />
+              <Text style={styles.actionLabel}>Decline</Text>
+            </Pressable>
+            
+            <Animated.View style={{ transform: [{ scale: pulseAnim }] }}>
+              <Pressable style={styles.acceptButton} onPress={handleAcceptCall}>
+                <Phone size={32} color="#FFFFFF" fill="#FFFFFF" />
+                <Text style={styles.actionLabel}>Accept</Text>
+              </Pressable>
+            </Animated.View>
+          </View>
+        ) : (
+          <Pressable style={styles.endCallButton} onPress={handleEndCall}>
+            <PhoneOff size={32} color="#FFFFFF" />
+          </Pressable>
+        )}
       </View>
     </SafeAreaView>
   );
@@ -72,8 +275,18 @@ const styles = StyleSheet.create({
     backgroundColor: '#1C1C1E',
   },
   header: {
+    flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'space-between',
     marginTop: 20,
+    paddingHorizontal: 20,
+  },
+  headerLeft: {
+    width: 40,
+  },
+  headerRight: {
+    width: 40,
+    alignItems: 'flex-end',
   },
   callerStatus: {
     color: '#FFFFFF',
@@ -102,12 +315,44 @@ const styles = StyleSheet.create({
   callerType: {
     color: '#EBEBF5',
     fontSize: 18,
+    marginBottom: 20,
+  },
+  stateIndicator: {
+    color: '#8E8E93',
+    fontSize: 14,
+    fontWeight: '500',
+    fontStyle: 'italic',
+  },
+  stateListening: {
+    color: '#34C759', // Green to indicate mic is open
   },
   actions: {
     flex: 1,
     justifyContent: 'flex-end',
     alignItems: 'center',
     paddingBottom: 60,
+  },
+  ringingActions: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    width: '100%',
+    paddingHorizontal: 60,
+  },
+  declineButton: {
+    width: 72,
+    height: 72,
+    borderRadius: 36,
+    backgroundColor: '#FF3B30',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  acceptButton: {
+    width: 72,
+    height: 72,
+    borderRadius: 36,
+    backgroundColor: '#34C759',
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   endCallButton: {
     width: 72,
@@ -117,4 +362,10 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
   },
+  actionLabel: {
+    color: '#FFFFFF',
+    position: 'absolute',
+    bottom: -30,
+    fontWeight: '500',
+  }
 });

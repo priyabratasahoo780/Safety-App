@@ -33,7 +33,7 @@ export default function SettingsScreen() {
     pushEnabled: true,
     smsEnabled: true,
     aiVoiceSos: true,
-    autoRecordAudio: true,
+    autoRecordEvidence: true,
     liveTracking: true,
   });
 
@@ -124,11 +124,11 @@ export default function SettingsScreen() {
           />
           <View style={styles.divider} />
           <SettingRow 
-            icon="mic-off" 
-            title="Auto-Record Audio" 
-            desc="Record 10 seconds of audio when emergency is triggered"
-            value={preferences.autoRecordAudio}
-            onToggle={() => toggleSwitch('autoRecordAudio')}
+            icon="camera" 
+            title="Auto-Record Evidence" 
+            desc="Record front/back video evidence when emergency is triggered"
+            value={preferences.autoRecordEvidence}
+            onToggle={() => toggleSwitch('autoRecordEvidence')}
           />
         </NeumorphicCard>
 

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   StyleSheet,
   View,
@@ -6,13 +6,18 @@ import {
   TouchableOpacity,
   TextInput,
   Dimensions,
+  ScrollView,
+  Alert,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { useRouter } from 'expo-router';
 import { Feather, MaterialCommunityIcons } from '@expo/vector-icons';
 import { Platform, Linking } from 'react-native';
+import { useAuth } from '@clerk/clerk-expo';
 import * as SMS from 'expo-sms';
+import * as Location from 'expo-location';
+import { CameraView, useCameraPermissions, useMicrophonePermissions } from 'expo-camera';
 
 import { EmergencyService } from '../../features/emergency/services/emergency.service';
 import { FirebaseEmergencyRepository } from '../../features/emergency/repositories/FirebaseEmergencyRepository';
@@ -25,6 +30,9 @@ import { EmergencyStatus, NetworkStatus } from '../../features/emergency/types/e
 import { SupportedLanguage } from '../../features/voice-sos/types/voice.types';
 import { authService } from '../../src/services/authService';
 import { ServiceLocator } from '../../features/voice-sos/utils/ServiceLocator';
+import { sosIncidentService } from '../../features/emergency/services/sosIncidentService';
+import { pushNotificationService } from '../../features/emergency/services/pushNotificationService';
+import { useUser } from '@clerk/clerk-expo';
 
 const { width } = Dimensions.get('window');
 
@@ -33,6 +41,178 @@ export default function ActiveSosScreen() {
   const [countdown, setCountdown] = useState(10);
   const [sosFired, setSosFired] = useState(false);
   const [note, setNote] = useState('');
+
+  // Camera & Video Capture State
+  const cameraRef = useRef<any>(null);
+  const { userId } = useAuth();
+  const { user } = useUser();
+  const [cameraPermission, requestCameraPermission] = useCameraPermissions();
+  const [micPermission, requestMicPermission] = useMicrophonePermissions();
+  const [isRecordingVideo, setIsRecordingVideo] = useState(false);
+  const [cameraFacing, setCameraFacing] = useState<'front' | 'back'>('front');
+  const [cameraReady, setCameraReady] = useState(false);
+  const [videoUrls, setVideoUrls] = useState<string[]>([]);
+  const hasStartedCapture = useRef(false);
+  
+  const [incidentId, setIncidentId] = useState<string | null>(null);
+  const locationSubRef = useRef<any>(null);
+  
+  const [prefs, setPrefs] = useState<any>(null);
+  const [trustedContacts, setTrustedContacts] = useState<any[]>([]);
+
+  useEffect(() => {
+    if (userId) {
+      authService.getUserProfile(userId).then(profile => {
+        if (profile?.safetyPreferences) {
+          setPrefs(profile.safetyPreferences);
+        } else {
+          setPrefs({ autoRecordEvidence: true, smsEnabled: true });
+        }
+        if (profile?.trustedContacts) {
+          setTrustedContacts(profile.trustedContacts);
+        }
+      });
+    }
+  }, [userId]);
+
+  // Request permissions
+  useEffect(() => {
+    (async () => {
+      if (cameraPermission && !cameraPermission.granted && cameraPermission.canAskAgain) {
+        await requestCameraPermission();
+      }
+      if (micPermission && !micPermission.granted && micPermission.canAskAgain) {
+        await requestMicPermission();
+      }
+    })();
+  }, [cameraPermission, micPermission]);
+
+  // Trigger recording or fallback when SOS is fired
+  useEffect(() => {
+    if (sosFired && prefs && !hasStartedCapture.current) {
+      if (prefs.autoRecordEvidence !== false) {
+        if (cameraReady && cameraPermission?.granted && micPermission?.granted && !isRecordingVideo) {
+          hasStartedCapture.current = true;
+          startEvidenceCapture();
+        }
+      } else {
+        hasStartedCapture.current = true;
+      }
+    }
+  }, [sosFired, cameraReady, cameraPermission, micPermission, prefs, isRecordingVideo]);
+
+  // Create Incident and Location Tracker
+  useEffect(() => {
+    if (sosFired && userId && !incidentId) {
+      const initIncident = async () => {
+        // 1. Create Incident
+        const newIncidentId = await sosIncidentService.createIncident(userId);
+        if (newIncidentId) setIncidentId(newIncidentId);
+
+        // 2. Start location tracking (Foreground)
+        const { status } = await Location.requestForegroundPermissionsAsync();
+        if (status === 'granted') {
+          locationSubRef.current = await Location.watchPositionAsync(
+            { accuracy: Location.Accuracy.High, timeInterval: 5000, distanceInterval: 10 },
+            (loc) => {
+              if (newIncidentId) sosIncidentService.updateLocation(newIncidentId, loc);
+            }
+          );
+        }
+        
+        // 3. Fallback SMS & Telegram
+        if (prefs?.smsEnabled !== false) {
+          sendAutomatedSMS([]).catch(e => console.log(e));
+          sendAutomatedTelegram([]).catch(e => console.log(e));
+        }
+
+        // 4. Send Background Push Notifications to Guardians!
+        pushNotificationService.sendEmergencyPushToGuardians(userId, user?.fullName || 'User');
+      };
+      initIncident();
+    }
+    
+    return () => {
+      if (locationSubRef.current) locationSubRef.current.remove();
+    };
+  }, [sosFired, userId]);
+
+  const buildAutomatedEmergencyMessage = async (urls: string[]) => {
+    let locationLink = 'Location unavailable';
+    try {
+      const loc = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
+      locationLink = `https://maps.google.com/?q=${loc.coords.latitude},${loc.coords.longitude}`;
+    } catch (e) {
+      console.log('Could not get live location for SOS message', e);
+    }
+
+    const urlText = urls.length > 0 ? `\n\n📹 Live Evidence:\n${urls.map((url, i) => `Video ${i + 1}: ${url}`).join('\n')}` : '';
+    return `🚨 SAFESPHERE EMERGENCY 🚨\n\nI am in danger and need immediate help!\n📍 My Live Location: ${locationLink}${urlText}`;
+  };
+
+  const sendAutomatedSMS = async (urls: string[]) => {
+    if (prefs?.smsEnabled === false) return;
+    const isAvailable = await SMS.isAvailableAsync();
+    if (isAvailable) {
+      const msg = await buildAutomatedEmergencyMessage(urls);
+      const phoneNumbers = trustedContacts.length > 0 ? trustedContacts.map(c => c.phone) : ['8799342780'];
+      await SMS.sendSMSAsync(phoneNumbers, msg);
+    }
+  };
+
+  const sendAutomatedTelegram = async (urls: string[]) => {
+    try {
+      const msg = await buildAutomatedEmergencyMessage(urls);
+      const encodedMsg = encodeURIComponent(msg);
+      
+      let targetPhone = trustedContacts.length > 0 ? trustedContacts[0].phone : '+918799342780';
+      if (!targetPhone.startsWith('+')) targetPhone = '+91' + targetPhone.replace(/\D/g, '');
+      
+      const telegramUrl = `https://t.me/${targetPhone}?text=${encodedMsg}`;
+      
+      const canOpen = await Linking.canOpenURL(telegramUrl);
+      if (canOpen) {
+        await Linking.openURL(telegramUrl);
+      } else {
+        console.log('Telegram is not installed or cannot open URL.');
+      }
+    } catch (error) {
+      console.log('Telegram automated send failed', error);
+    }
+  };
+
+  const startEvidenceCapture = async () => {
+    setIsRecordingVideo(true);
+    try {
+      const storage = new FirebaseStorageService();
+      
+      // SAFE FALLBACK MODE B: Record only rear camera for 15s to ensure stability during emergency
+      setCameraFacing('back');
+      await new Promise(r => setTimeout(r, 500)); 
+      
+      if (cameraRef.current) {
+        if (incidentId) await sosIncidentService.updateEvidenceStatus(incidentId, 'recording');
+        
+        const video = await cameraRef.current.recordAsync({ maxDuration: 15 });
+        if (video) {
+          if (incidentId) await sosIncidentService.updateEvidenceStatus(incidentId, 'uploading');
+          const url = await storage.uploadEvidence(incidentId || 'manual_sos_' + Date.now(), `evidence_${Date.now()}.mp4`, video.uri, 'video');
+          setVideoUrls([url]);
+          if (incidentId) await sosIncidentService.updateEvidenceStatus(incidentId, 'uploaded', url);
+          
+          // Resend alerts with evidence URL
+          await sendAutomatedSMS([url]);
+          await sendAutomatedTelegram([url]);
+        }
+      }
+    } catch (err) {
+      console.log('Video capture failed:', err);
+      if (incidentId) await sosIncidentService.updateEvidenceStatus(incidentId, 'failed');
+    } finally {
+      setIsRecordingVideo(false);
+    }
+  };
+
 
   // Waveform bars simulation
   const [waveHeights, setWaveHeights] = useState([15, 30, 20, 45, 10, 25, 35, 15, 40]);
@@ -108,13 +288,28 @@ export default function ActiveSosScreen() {
   };
 
   const handleCancel = () => {
-    import('react-native').then(({ DeviceEventEmitter }) => {
-      DeviceEventEmitter.emit('stop_sos');
-    });
-    ServiceLocator.getInstance().emergency.resolveEmergency();
-    ServiceLocator.getInstance().mic.stop();
-    // Return back to dashboard
-    router.replace('/(drawer)/(tabs)/home');
+    Alert.alert(
+      "End SOS?",
+      "Your Guardians will be informed that the emergency session has ended.",
+      [
+        { text: "Cancel", style: "cancel" },
+        { 
+          text: "End SOS", 
+          style: "destructive", 
+          onPress: async () => {
+            if (incidentId) await sosIncidentService.endIncident(incidentId);
+            if (locationSubRef.current) locationSubRef.current.remove();
+            
+            import('react-native').then(({ DeviceEventEmitter }) => {
+              DeviceEventEmitter.emit('stop_sos');
+            });
+            ServiceLocator.getInstance().emergency.resolveEmergency();
+            ServiceLocator.getInstance().mic.stop();
+            router.replace('/(drawer)/(tabs)/home');
+          }
+        }
+      ]
+    );
   };
 
   return (
@@ -141,9 +336,27 @@ export default function ActiveSosScreen() {
         ) : (
           /* SOS ACTIVE FIRED STATE */
           <View style={styles.alarmStateContainer}>
-            <View style={styles.sosLiveGlowCircle}>
-              <MaterialCommunityIcons name="alert" size={48} color="#FFFFFF" />
-            </View>
+            {prefs?.autoRecordEvidence !== false ? (
+              <View style={styles.cameraLiveFeedContainer}>
+                <CameraView
+                  ref={cameraRef}
+                  style={styles.cameraLiveFeed}
+                  facing={cameraFacing}
+                  mode="video"
+                  onCameraReady={() => setCameraReady(true)}
+                />
+                {isRecordingVideo && (
+                  <View style={styles.recBadge}>
+                    <View style={styles.recDot} />
+                    <Text style={styles.recText}>REC</Text>
+                  </View>
+                )}
+              </View>
+            ) : (
+              <View style={styles.sosLiveGlowCircle}>
+                <MaterialCommunityIcons name="alert" size={48} color="#FFFFFF" />
+              </View>
+            )}
 
             <Text style={styles.sosActiveTitle}>SOS IS LIVE</Text>
             <Text style={styles.sosActiveSubtitle}>
@@ -163,23 +376,28 @@ export default function ActiveSosScreen() {
         {/* Notified Contacts / Guardians */}
         <View style={styles.guardiansCard}>
           <Text style={styles.guardiansCardTitle}>Notified Guardians</Text>
-          <View style={styles.guardiansRow}>
-            <View style={styles.guardianItem}>
-              <View style={[styles.guardianAvatar, { backgroundColor: '#FCA5A5' }]}>
-                <Text style={styles.avatarTxt}>R</Text>
-              </View>
-              <Text style={styles.guardianName}>Rajesh (Dad)</Text>
-              <Text style={[styles.guardianStatus, { color: '#059669' }]}>• Connected</Text>
-            </View>
-
-            <View style={styles.guardianItem}>
-              <View style={[styles.guardianAvatar, { backgroundColor: '#93C5FD' }]}>
-                <Text style={styles.avatarTxt}>A</Text>
-              </View>
-              <Text style={styles.guardianName}>Anjali</Text>
-              <Text style={[styles.guardianStatus, { color: '#D97706' }]}>• Notified</Text>
-            </View>
-          </View>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.guardiansRow}>
+            {trustedContacts.length > 0 ? (
+              trustedContacts.map((contact, index) => {
+                const colors = ['#FCA5A5', '#93C5FD', '#A7F3D0', '#FDE047', '#C4B5FD'];
+                const bgColor = colors[index % colors.length];
+                const initial = contact.name ? contact.name.charAt(0).toUpperCase() : '?';
+                return (
+                  <View key={index} style={[styles.guardianItem, { minWidth: 140 }]}>
+                    <View style={[styles.guardianAvatar, { backgroundColor: bgColor }]}>
+                      <Text style={styles.avatarTxt}>{initial}</Text>
+                    </View>
+                    <View style={{ flex: 1 }}>
+                      <Text style={styles.guardianName} numberOfLines={1}>{contact.name || contact.phone}</Text>
+                      <Text style={[styles.guardianStatus, { color: '#059669' }]}>• Notified</Text>
+                    </View>
+                  </View>
+                );
+              })
+            ) : (
+              <Text style={{ color: '#9CA3AF', fontSize: 13, fontStyle: 'italic', paddingVertical: 10 }}>No trusted contacts added.</Text>
+            )}
+          </ScrollView>
         </View>
 
         {/* Note input field */}
@@ -217,6 +435,7 @@ export default function ActiveSosScreen() {
           <Text style={styles.cancelText}>{"I'm Safe, Cancel Alarm"}</Text>
         </TouchableOpacity>
       </View>
+
     </SafeAreaView>
   );
 }
@@ -326,6 +545,49 @@ const styles = StyleSheet.create({
     shadowRadius: 20,
     elevation: 8,
     marginBottom: 20,
+  },
+  cameraLiveFeedContainer: {
+    width: width * 0.4,
+    height: width * 0.4,
+    borderRadius: (width * 0.4) / 2,
+    backgroundColor: '#1F2937',
+    justifyContent: 'center',
+    alignItems: 'center',
+    shadowColor: '#DC2626',
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0.8,
+    shadowRadius: 20,
+    elevation: 8,
+    marginBottom: 20,
+    overflow: 'hidden',
+    borderWidth: 2,
+    borderColor: '#DC2626',
+  },
+  cameraLiveFeed: {
+    width: '100%',
+    height: '100%',
+  },
+  recBadge: {
+    position: 'absolute',
+    top: 15,
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(0,0,0,0.6)',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 12,
+  },
+  recDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: '#DC2626',
+    marginRight: 4,
+  },
+  recText: {
+    color: '#FFFFFF',
+    fontSize: 10,
+    fontWeight: '800',
   },
   sosActiveTitle: {
     color: '#FFFFFF',

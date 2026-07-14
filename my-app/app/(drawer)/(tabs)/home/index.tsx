@@ -33,6 +33,7 @@ import {
   Lightbulb,
   ChevronRight,
   Sun,
+  Moon,
   Phone,
   CloudSun,
   Battery,
@@ -201,7 +202,7 @@ const SOSButton = ({ isActive, onActivate }: any) => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     Animated.parallel([
       Animated.spring(scale, { toValue: 0.92, useNativeDriver: true }),
-      Animated.timing(progress, { toValue: 1, duration: 2500, useNativeDriver: false }),
+      Animated.timing(progress, { toValue: 1, duration: 2000, useNativeDriver: false }),
     ]).start();
 
     warningTimer.current = setTimeout(() => {
@@ -212,7 +213,7 @@ const SOSButton = ({ isActive, onActivate }: any) => {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       isHeldSuccessfully.current = true;
       onActivate();
-    }, 2500);
+    }, 2000);
   };
 
   const endHold = () => {
@@ -233,7 +234,7 @@ const SOSButton = ({ isActive, onActivate }: any) => {
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
     Alert.alert(
       "Hold to Activate",
-      "Please press and hold the SOS button for 2.5 seconds to trigger emergency help.",
+      "Please press and hold the SOS button for 2 seconds to trigger emergency help.",
       [{ text: "OK" }]
     );
   };
@@ -289,6 +290,12 @@ export default function HomeScreen() {
   const [trustedContacts, setTrustedContacts] = useState<any[]>([]);
   const [userProfile, setUserProfile] = useState<any>(null);
 
+  const { greeting, GreetingIcon, greetingColor } = React.useMemo(() => {
+    const hour = new Date().getHours();
+    if (hour < 12) return { greeting: 'Good Morning,', GreetingIcon: Sun, greetingColor: COLORS.orange };
+    if (hour < 17) return { greeting: 'Good Afternoon,', GreetingIcon: Sun, greetingColor: COLORS.orange };
+    return { greeting: 'Good Evening,', GreetingIcon: Moon, greetingColor: COLORS.purplePrimary };
+  }, []);
   useFocusEffect(
     React.useCallback(() => {
       const loadContacts = async () => {
@@ -427,8 +434,8 @@ export default function HomeScreen() {
                   style={{ width: 18, height: 18, marginRight: 6 }}
                   contentFit="contain"
                 />
-                <Sun size={14} color={COLORS.orange} style={{ marginRight: 6 }} />
-                <Text style={styles.greetingSmall}>Good Afternoon,</Text>
+                <GreetingIcon size={14} color={greetingColor} style={{ marginRight: 6 }} />
+                <Text style={styles.greetingSmall}>{greeting}</Text>
               </View>
               <Text style={styles.greetingName}>{user?.firstName || 'Stay Safe'}</Text>
               <Text style={styles.greetingSub}>Your safety is our priority.</Text>

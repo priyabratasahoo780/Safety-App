@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import * as Location from 'expo-location';
-import { collection, getDocs, query, orderBy, doc, getDoc } from 'firebase/firestore';
+import { collection, getDocs, query, orderBy, doc, getDoc, limit } from 'firebase/firestore';
 import { useUser } from '@clerk/clerk-expo';
 import { db } from '../../../src/config/firebaseConfig';
 import { getHistoricalBaseScore } from '../../../constants/historicalCrimeData';
@@ -26,49 +26,76 @@ export const useSafetyAnalysis = () => {
       const risks: any[] = [];
       const recommendations: any[] = [];
 
-      // 1. Calculate Lifestyle Safety (Trusted Contacts)
+      // Create promises to run concurrently for massive speedup
+      const promises: any[] = [];
+
+      // 1. User Profile Promise
+      let userProfilePromise = Promise.resolve(null);
       if (user) {
         const userRef = doc(db, 'users', user.id);
-        const userSnap = await getDoc(userRef);
-        if (userSnap.exists()) {
-          const profile = userSnap.data();
-          const contactsCount = profile.trustedContacts ? profile.trustedContacts.length : 0;
-          if (contactsCount === 0) {
-            lifestyleSafetyScore = 40;
-            risks.push({
-              id: 'r_lifestyle_1', title: 'No Guardians', description: 'You have no trusted contacts added.',
-              risk: 'High Risk', percentage: 70, iconName: 'users-round', themeColor: '#FDEBF1', progressColor: '#F04470'
-            });
-            recommendations.push({
-              id: 'rec_lifestyle_1', title: 'Add Trusted Contacts', description: 'Add friends or family for emergencies.',
-              iconName: 'user-plus', themeColor: '#F04470', buttonText: 'Add Now', actionType: 'view_tips'
-            });
-          } else if (contactsCount <= 2) {
-            lifestyleSafetyScore = 75;
-            risks.push({
-              id: 'r_lifestyle_2', title: 'Small Safety Network', description: 'Consider adding more trusted contacts.',
-              risk: 'Low Risk', percentage: 30, iconName: 'users', themeColor: '#FFF4E5', progressColor: '#F59E0B'
-            });
-          } else {
-            lifestyleSafetyScore = 95;
+        userProfilePromise = getDoc(userRef);
+      }
+
+      // 2. Community Reports Promise (Limit to 50 for speed instead of fetching all)
+      const q = query(collection(db, 'community_reports'), orderBy('createdAt', 'desc'), limit(50));
+      const reportsPromise = getDocs(q);
+
+      // 3. Location Promise
+      let locationPromise = (async () => {
+        let { status } = await Location.requestForegroundPermissionsAsync();
+        if (status === 'granted') {
+          // Use last known position for instant load, fallback to balanced accuracy if null
+          let loc = await Location.getLastKnownPositionAsync({});
+          if (!loc) {
+            loc = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
           }
+          if (loc) {
+            const geocode = await Location.reverseGeocodeAsync({
+              latitude: loc.coords.latitude,
+              longitude: loc.coords.longitude
+            });
+            return { loc, geocode };
+          }
+        }
+        return null;
+      })();
+
+      // Wait for all promises concurrently
+      const [userSnap, snapshot, locationData] = await Promise.all([
+        userProfilePromise,
+        reportsPromise,
+        locationPromise
+      ]);
+
+      // --- Process Lifestyle Safety ---
+      if (userSnap && userSnap.exists()) {
+        const profile = userSnap.data();
+        const contactsCount = profile.trustedContacts ? profile.trustedContacts.length : 0;
+        if (contactsCount === 0) {
+          lifestyleSafetyScore = 40;
+          risks.push({
+            id: 'r_lifestyle_1', title: 'No Guardians', description: 'You have no trusted contacts added.',
+            risk: 'High Risk', percentage: 70, iconName: 'users-round', themeColor: '#FDEBF1', progressColor: '#F04470'
+          });
+          recommendations.push({
+            id: 'rec_lifestyle_1', title: 'Add Trusted Contacts', description: 'Add friends or family for emergencies.',
+            iconName: 'user-plus', themeColor: '#F04470', buttonText: 'Add Now', actionType: 'view_tips'
+          });
+        } else if (contactsCount <= 2) {
+          lifestyleSafetyScore = 75;
+          risks.push({
+            id: 'r_lifestyle_2', title: 'Small Safety Network', description: 'Consider adding more trusted contacts.',
+            risk: 'Low Risk', percentage: 30, iconName: 'users', themeColor: '#FFF4E5', progressColor: '#F59E0B'
+          });
+        } else {
+          lifestyleSafetyScore = 95;
         }
       }
 
-      // 2. Calculate Travel Safety (Location & Crime Rate)
-      let { status } = await Location.requestForegroundPermissionsAsync();
-      if (status === 'granted') {
-        const location = await Location.getCurrentPositionAsync({});
-        const geocode = await Location.reverseGeocodeAsync({
-          latitude: location.coords.latitude,
-          longitude: location.coords.longitude
-        });
-        
-        const currentRegion = geocode && geocode.length > 0 ? (geocode[0].region || '') : '';
+      // --- Process Travel Safety ---
+      if (locationData) {
+        const currentRegion = locationData.geocode && locationData.geocode.length > 0 ? (locationData.geocode[0].region || '') : '';
         const historicalBaseScore = getHistoricalBaseScore(currentRegion);
-        
-        const q = query(collection(db, 'community_reports'), orderBy('createdAt', 'desc'));
-        const snapshot = await getDocs(q);
         
         let harassmentCount = 0;
         let theftCount = 0;
@@ -110,7 +137,7 @@ export const useSafetyAnalysis = () => {
         });
       }
 
-      // 3. Calculate Home Safety (Time of Day)
+      // --- Process Home Safety ---
       const currentHour = new Date().getHours();
       if (currentHour >= 22 || currentHour < 5) {
         homeSafetyScore = 55;
@@ -126,7 +153,6 @@ export const useSafetyAnalysis = () => {
         homeSafetyScore = 85;
       }
       
-      // Default recommendation if empty
       if (recommendations.length === 0) {
           recommendations.push({
             id: 'rec_def', title: 'Maintain Good Habits', description: 'Keep following safety guidelines.',
