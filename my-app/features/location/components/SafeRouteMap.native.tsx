@@ -1,6 +1,6 @@
 import React, { useRef, useEffect, forwardRef, useImperativeHandle } from 'react';
 import { View, Text, StyleSheet, Pressable, Platform } from 'react-native';
-import MapView, { Marker, Polyline, PROVIDER_DEFAULT } from 'react-native-maps';
+import MapView, { Marker, Polyline, UrlTile, PROVIDER_DEFAULT } from 'react-native-maps';
 import { LiveLocationData, DestinationLocation, RouteOption } from '../types/location.types';
 import { Shield, AlertTriangle, ShieldAlert, Navigation, Map as MapIcon } from 'lucide-react-native';
 
@@ -71,7 +71,12 @@ export const SafeRouteMap = forwardRef<MapHandle, Props>(({
           } : undefined}
           showsUserLocation={false}
           onLongPress={onLongPressMap}
+          mapType="none"
         >
+          <UrlTile
+            urlTemplate="https://a.tile.openstreetmap.org/{z}/{x}/{y}.png"
+            maximumZ={19}
+          />
           {/* Current Location Marker */}
         {currentLocation && (
           <Marker
