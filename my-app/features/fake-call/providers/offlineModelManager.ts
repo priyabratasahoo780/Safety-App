@@ -1,4 +1,5 @@
-import * as FileSystem from 'expo-file-system';
+import * as FileSystem from 'expo-file-system/legacy';
+import { Platform } from 'react-native';
 
 export interface ModelInfo {
   id: string;
@@ -34,7 +35,10 @@ export const OFFLINE_MODELS: Record<string, ModelInfo> = {
 
 class OfflineModelManager {
   private static instance: OfflineModelManager;
-  private modelDirectory = (FileSystem as any).documentDirectory + 'models/';
+  private get modelDirectory() {
+    if (Platform.OS === 'web') return '';
+    return (FileSystem as any).documentDirectory + 'models/';
+  }
 
   private constructor() {}
 
@@ -46,6 +50,8 @@ class OfflineModelManager {
   }
 
   async ensureDirectory() {
+    if (Platform.OS === 'web') return;
+    
     const dirInfo = await FileSystem.getInfoAsync(this.modelDirectory);
     if (!dirInfo.exists) {
       await FileSystem.makeDirectoryAsync(this.modelDirectory, { intermediates: true });
@@ -53,6 +59,8 @@ class OfflineModelManager {
   }
 
   async checkModelExists(modelId: string): Promise<boolean> {
+    if (Platform.OS === 'web') return false;
+    
     await this.ensureDirectory();
     const model = OFFLINE_MODELS[modelId];
     if (!model) return false;
@@ -62,6 +70,8 @@ class OfflineModelManager {
   }
 
   async deleteModel(modelId: string): Promise<void> {
+    if (Platform.OS === 'web') return;
+    
     const model = OFFLINE_MODELS[modelId];
     if (!model) return;
     
@@ -76,6 +86,8 @@ class OfflineModelManager {
     modelId: string, 
     onProgress: (progress: number) => void
   ): any | null {
+    if (Platform.OS === 'web') return null;
+    
     const model = OFFLINE_MODELS[modelId];
     if (!model) return null;
 

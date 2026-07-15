@@ -1,4 +1,5 @@
 // Extracted baseline historical risk scores based on general NCRB data trends (2001-2021)
+// Data sourced from: crimes-against-women-in-india-2001-2021 Kaggle Dataset
 // Scores are mapped out of 50. The remaining 50 points will come from live community reports.
 
 export const historicalCrimeData: Record<string, number> = {

@@ -1,4 +1,5 @@
 import { useEffect, useRef } from 'react';
+import { Platform } from 'react-native';
 import { Accelerometer } from 'expo-sensors';
 import { useRouter, usePathname } from 'expo-router';
 import { EmergencyStatus } from '../../emergency/types/emergency.types';
@@ -13,12 +14,18 @@ export const useShakeToSOS = (isActive: boolean = true) => {
   const lastShakeTime = useRef<number>(0);
 
   useEffect(() => {
-    if (!isActive) return;
+    if (!isActive || Platform.OS === 'web') return;
 
-    // Set update interval. 400ms is efficient enough for battery life while detecting shakes.
-    Accelerometer.setUpdateInterval(400);
+    let subscription: any;
 
-    const subscription = Accelerometer.addListener(({ x, y, z }) => {
+    const startSensors = async () => {
+      const isAvailable = await Accelerometer.isAvailableAsync();
+      if (!isAvailable) return;
+
+      // Set update interval. 400ms is efficient enough for battery life while detecting shakes.
+      Accelerometer.setUpdateInterval(400);
+
+      subscription = Accelerometer.addListener(({ x, y, z }) => {
       // Calculate total acceleration magnitude
       const acceleration = Math.sqrt(x * x + y * y + z * z);
       
@@ -38,10 +45,15 @@ export const useShakeToSOS = (isActive: boolean = true) => {
           }
         }
       }
-    });
+      });
+    };
+    
+    startSensors();
 
     return () => {
-      subscription.remove();
+      if (subscription) {
+        subscription.remove();
+      }
     };
   }, [isActive, pathname, router]);
 };
