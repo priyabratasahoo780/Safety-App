@@ -35,17 +35,20 @@ export default function NavigateScreen() {
   const [isRouting, setIsRouting] = useState(false);
 
   useEffect(() => {
-    if (location && destinationCoords) {
+    if (destinationCoords) {
       fetchRealRoutes();
     }
   }, [location, destinationCoords]);
 
   const fetchRealRoutes = async () => {
-    if (!location) return;
     setIsRouting(true);
     
+    // Fallback to Kolkata if location isn't ready
+    const startLat = location?.latitude || 22.5750;
+    const startLng = location?.longitude || 88.4280;
+
     try {
-      const start = `${location.longitude},${location.latitude}`;
+      const start = `${startLng},${startLat}`;
       const end = `${destinationCoords.longitude},${destinationCoords.latitude}`;
       
       const drivingRes = await fetch(`https://router.project-osrm.org/route/v1/driving/${start};${end}?overview=simplified&geometries=geojson`);
@@ -200,7 +203,7 @@ export default function NavigateScreen() {
 
       <View style={styles.mapContainer}>
         <SafeRouteMap 
-          currentLocation={location}
+          currentLocation={location || { latitude: 22.5750, longitude: 88.4280 } as any}
           destination={{ latitude: destinationCoords.latitude, longitude: destinationCoords.longitude, address: destination }}
           routes={routes}
           selectedRoute={routes.find(r => r.id === selectedRoute) || null}

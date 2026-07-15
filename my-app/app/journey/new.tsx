@@ -32,6 +32,14 @@ export default function NewJourneyScreen() {
     });
   };
 
+  const formatDuration = (mins: number) => {
+    if (mins < 60) return `${mins} mins`;
+    const h = Math.floor(mins / 60);
+    const m = mins % 60;
+    if (m === 0) return `${h} hr`;
+    return `${h} hr ${m} mins`;
+  };
+
   return (
     <SafeAreaView style={styles.container}>
       <StatusBar style="dark" />
@@ -70,7 +78,7 @@ export default function NewJourneyScreen() {
         {/* Duration Slider Section */}
         <Text style={styles.sectionTitle}>Expected Duration</Text>
         <View style={styles.durationCard}>
-          <Text style={styles.durationValue}>{duration} mins</Text>
+          <Text style={styles.durationValue}>{formatDuration(duration)}</Text>
           <Text style={styles.durationSub}>If you do not check-in within this time, SOS triggers automatically.</Text>
           
           {/* Custom incremental selector instead of standard slider for multiplatform compatibility */}
@@ -88,7 +96,7 @@ export default function NewJourneyScreen() {
 
             <TouchableOpacity 
               style={styles.stepBtn}
-              onPress={() => setDuration(prev => Math.min(120, prev + 5))}
+              onPress={() => setDuration(prev => prev + 15)}
             >
               <Feather name="plus" size={20} color="#6D28D9" />
             </TouchableOpacity>

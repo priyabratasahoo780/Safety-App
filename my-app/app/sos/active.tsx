@@ -19,7 +19,7 @@ import { useAuth } from '@clerk/clerk-expo';
 import * as SMS from 'expo-sms';
 import * as Location from 'expo-location';
 import * as Battery from 'expo-battery';
-import * as FileSystem from 'expo-file-system';
+import * as FileSystem from 'expo-file-system/legacy';
 import { socketService } from '../../src/services/socketService';
 import { CameraView, useCameraPermissions, useMicrophonePermissions } from 'expo-camera';
 
