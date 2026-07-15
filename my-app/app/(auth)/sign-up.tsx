@@ -18,6 +18,7 @@ import { Feather, Ionicons } from '@expo/vector-icons';
 import { auth } from '@/src/config/firebaseConfig';
 import { useOAuth } from '@clerk/clerk-expo';
 import * as Linking from 'expo-linking';
+import { useRateLimit } from '@/src/hooks/useRateLimit';
 
 export default function SignUpScreen() {
   const router = useRouter();
@@ -27,8 +28,11 @@ export default function SignUpScreen() {
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const { startOAuthFlow } = useOAuth({ strategy: 'oauth_google' });
+  const { checkRateLimit } = useRateLimit({ maxAttempts: 5, timeWindowMs: 300000, lockoutTimeMs: 60000 });
 
   const handleGoogleSignIn = async () => {
+    if (!checkRateLimit()) return;
+    
     setLoading(true);
     try {
       const { createdSessionId, setActive: setActiveSession } = await startOAuthFlow({
@@ -46,6 +50,8 @@ export default function SignUpScreen() {
 
 
   const handleSignUp = () => {
+    if (!checkRateLimit()) return;
+    
     if (!email || !password || !fullName) {
       Alert.alert('Error', 'Please fill in all fields');
       return;

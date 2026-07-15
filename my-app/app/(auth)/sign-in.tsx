@@ -17,6 +17,7 @@ import { useRouter } from 'expo-router';
 import { Feather, Ionicons } from '@expo/vector-icons';
 import { useSignIn, useOAuth } from '@clerk/clerk-expo';
 import * as Linking from 'expo-linking';
+import { useRateLimit } from '@/src/hooks/useRateLimit';
 
 export default function SignInScreen() {
   const router = useRouter();
@@ -26,8 +27,11 @@ export default function SignInScreen() {
   const [loading, setLoading] = useState(false);
   const { signIn, setActive, isLoaded } = useSignIn();
   const { startOAuthFlow } = useOAuth({ strategy: 'oauth_google' });
+  const { checkRateLimit } = useRateLimit({ maxAttempts: 5, timeWindowMs: 300000, lockoutTimeMs: 60000 });
 
   const handleGoogleSignIn = async () => {
+    if (!checkRateLimit()) return;
+    
     setLoading(true);
     try {
       const { createdSessionId, setActive: setActiveSession } = await startOAuthFlow({
@@ -44,6 +48,8 @@ export default function SignInScreen() {
   };
 
   const handleLogin = async () => {
+    if (!checkRateLimit()) return;
+    
     if (!email || !password) {
       Alert.alert('Error', 'Please enter your email and password');
       return;
