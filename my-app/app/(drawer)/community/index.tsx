@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, createElement, useCallback } from 'react';
 import {
   StyleSheet,
   View,
@@ -7,6 +7,7 @@ import {
   ScrollView,
   Dimensions,
   Share,
+  Platform,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
@@ -16,7 +17,7 @@ import MapView, { Marker, Circle, UrlTile } from '../../../components/MapViewPro
 import { collection, query, orderBy, getDocs, doc, updateDoc, arrayUnion, arrayRemove } from 'firebase/firestore';
 import { useAuth } from '@clerk/clerk-expo';
 import { db } from '../../../src/config/firebaseConfig';
-import { useCallback } from 'react';
+import { useLiveLocation } from '../../../features/location/hooks/useLiveLocation';
 
 const { width } = Dimensions.get('window');
 
@@ -40,6 +41,7 @@ export default function CommunityScreen() {
   const [activeTab, setActiveTab] = useState<'feed' | 'heatmap'>('heatmap');
   const [incidents, setIncidents] = useState<Incident[]>([]);
   const [loading, setLoading] = useState(true);
+  const { location } = useLiveLocation();
 
   useFocusEffect(
     useCallback(() => {
@@ -177,7 +179,8 @@ export default function CommunityScreen() {
       <StatusBar style="dark" />
       
       {/* Header */}
-      <View style={styles.header}>
+      <View style={[styles.header, { flexDirection: 'row', alignItems: 'center' }]}>
+        <TouchableOpacity onPress={() => router.back()} style={{ padding: 8, marginRight: 12 }}><Feather name="arrow-left" size={24} color="#111827" /></TouchableOpacity>
         <Text style={styles.title}>Community Safety</Text>
         <Text style={styles.subtitle}>Help your community by reporting incidents</Text>
         
@@ -282,44 +285,96 @@ export default function CommunityScreen() {
       ) : (
         /* Real Map View */
         <View style={styles.heatmapWrapper}>
-          <MapView
-            style={styles.map}
-            mapType="none" // Required to disable default Google/Apple maps base layer for free custom tiles
-            initialRegion={{
-              latitude: 22.5726,
-              longitude: 88.3639,
-              latitudeDelta: 0.05,
-              longitudeDelta: 0.05,
-            }}
-          >
-            <UrlTile
-              urlTemplate="https://a.tile.openstreetmap.de/{z}/{x}/{y}.png"
-              maximumZ={19}
-              flipY={false}
-            />
-            {incidents.filter(inc => inc.latitude && inc.longitude).map((incident) => {
-              const color = getCategoryColor(incident.category);
-              return (
-                <React.Fragment key={incident.id}>
-                  <Marker
-                    coordinate={{ latitude: incident.latitude, longitude: incident.longitude }}
-                    title={incident.category}
-                    description={incident.location}
-                    onCalloutPress={() => router.push(`/community/report/${incident.id}`)}
-                  >
-                    <View style={[styles.categoryDot, { backgroundColor: color, width: 16, height: 16, borderRadius: 8, borderWidth: 2, borderColor: '#fff' }]} />
-                  </Marker>
-                  <Circle
-                    center={{ latitude: incident.latitude, longitude: incident.longitude }}
-                    radius={300}
-                    fillColor={color + '33'} // 20% opacity
-                    strokeColor={color + '66'}
-                    strokeWidth={1}
-                  />
-                </React.Fragment>
-              );
-            })}
-          </MapView>
+          {Platform.OS === 'web' ? (
+            createElement('iframe', {
+              srcDoc: `
+                <!DOCTYPE html>
+                <html>
+                <head>
+                  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+                  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+                  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+                  <style>
+                    body { padding: 0; margin: 0; background-color: #f0f0f0; }
+                    #map { height: 100vh; width: 100vw; }
+                    .custom-div-icon { background: transparent; border: none; }
+                  </style>
+                </head>
+                <body>
+                  <div id="map"></div>
+                  <script>
+                    var map = L.map('map').setView([${location?.latitude || 22.5726}, ${location?.longitude || 88.3639}], 12);
+                    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                      maxZoom: 19,
+                      attribution: '© OpenStreetMap'
+                    }).addTo(map);
+                    
+                    ${incidents.filter(inc => inc.latitude && inc.longitude).map(inc => {
+                      const color = getCategoryColor(inc.category);
+                      return `
+                        L.circle([${inc.latitude}, ${inc.longitude}], {
+                          color: '${color}',
+                          fillColor: '${color}',
+                          fillOpacity: 0.2,
+                          radius: 300,
+                          weight: 1
+                        }).addTo(map);
+                        
+                        var iconHtml = \`<div style="background-color: ${color}; width: 16px; height: 16px; border-radius: 8px; border: 2px solid white; box-shadow: 0 2px 4px rgba(0,0,0,0.3);"></div>\`;
+                        var icon = L.divIcon({ html: iconHtml, className: 'custom-div-icon', iconSize: [20, 20], iconAnchor: [10, 10] });
+                        
+                        L.marker([${inc.latitude}, ${inc.longitude}], { icon: icon })
+                          .addTo(map)
+                          .bindPopup('<b>${inc.category}</b><br>${inc.location.replace(/'/g, "\\'")}');
+                      `;
+                    }).join('\n')}
+                  </script>
+                </body>
+                </html>
+              `,
+              style: { width: '100%', height: '100%', border: 'none' },
+              allowFullScreen: true,
+            })
+          ) : (
+            <MapView
+              style={styles.map}
+              mapType="none" // Required to disable default Google/Apple maps base layer for free custom tiles
+              initialRegion={{
+                latitude: location?.latitude || 22.5726,
+                longitude: location?.longitude || 88.3639,
+                latitudeDelta: 0.05,
+                longitudeDelta: 0.05,
+              }}
+            >
+              <UrlTile
+                urlTemplate="https://a.tile.openstreetmap.de/{z}/{x}/{y}.png"
+                maximumZ={19}
+                flipY={false}
+              />
+              {incidents.filter(inc => inc.latitude && inc.longitude).map((incident) => {
+                const color = getCategoryColor(incident.category);
+                return (
+                  <React.Fragment key={incident.id}>
+                    <Marker
+                      coordinate={{ latitude: incident.latitude, longitude: incident.longitude }}
+                      title={incident.category}
+                      description={incident.location}
+                      onCalloutPress={() => router.push(`/community/report/${incident.id}`)}
+                    >
+                      <View style={[styles.categoryDot, { backgroundColor: color, width: 16, height: 16, borderRadius: 8, borderWidth: 2, borderColor: '#fff' }]} />
+                    </Marker>
+                    <Circle
+                      center={{ latitude: incident.latitude, longitude: incident.longitude }}
+                      radius={300}
+                      fillColor={color + '33'} // 20% opacity
+                      strokeColor={color + '66'}
+                      strokeWidth={1}
+                    />
+                  </React.Fragment>
+                );
+              })}
+            </MapView>
+          )}
 
           {/* Legend Overlay */}
           <View style={styles.legendContainer}>

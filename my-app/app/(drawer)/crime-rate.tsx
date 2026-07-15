@@ -1,11 +1,12 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, ScrollView, ActivityIndicator } from 'react-native';
+import { useRouter } from 'expo-router';
+import { TouchableOpacity, View, Text, StyleSheet, ScrollView, ActivityIndicator } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { DrawerToggleButton } from '@react-navigation/drawer';
 import { Feather } from '@expo/vector-icons';
 import { ShieldAlert, MapPin, AlertTriangle, Activity } from 'lucide-react-native';
 import * as Location from 'expo-location';
-import { collection, getDocs, query, orderBy, limit } from 'firebase/firestore';
+import { collection, onSnapshot, query, orderBy, limit } from 'firebase/firestore';
 import { db } from '../../src/config/firebaseConfig';
 import { getHistoricalBaseScore } from '../../constants/historicalCrimeData';
 
@@ -36,9 +37,21 @@ const riskDescriptions = {
 };
 
 export default function CrimeRateScreen() {
+  const router = useRouter();
   const insets = useSafeAreaInsets();
   const [loading, setLoading] = useState(true);
   const [locationName, setLocationName] = useState('Fetching location...');
+  
+  // Helper to calculate distance in km
+  const getDistance = (lat1: number, lon1: number, lat2: number, lon2: number) => {
+    const R = 6371; // Earth's radius in km
+    const dLat = (lat2 - lat1) * Math.PI / 180;
+    const dLon = (lon2 - lon1) * Math.PI / 180;
+    const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
+              Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * 
+              Math.sin(dLon/2) * Math.sin(dLon/2);
+    return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+  };
   
   const [crimeData, setCrimeData] = useState({
     overallRisk: 'Low',
@@ -51,77 +64,106 @@ export default function CrimeRateScreen() {
 
   useEffect(() => {
     (async () => {
-      let { status } = await Location.requestForegroundPermissionsAsync();
-      if (status !== 'granted') {
-        setLocationName('Location Access Denied');
-        setLoading(false);
-        return;
-      }
-      
-      try {
-        // Fetch Location faster with Balanced accuracy
-        let location = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
-        let geocode = await Location.reverseGeocodeAsync({
-          latitude: location.coords.latitude,
-          longitude: location.coords.longitude
-        });
-        
-        let currentRegion = '';
-        if (geocode && geocode.length > 0) {
-          currentRegion = geocode[0].region || '';
-          setLocationName(`${geocode[0].city || geocode[0].district}, ${currentRegion}`);
-        } else {
-          setLocationName('Unknown Area');
-        }
+      let currentRegion = '';
+      let locName = 'Unknown Area';
+      let userLat = 22.5726;
+      let userLon = 88.3639;
 
+      try {
+        let { status } = await Location.requestForegroundPermissionsAsync();
+        if (status === 'granted') {
+          let location = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
+          userLat = location.coords.latitude;
+          userLon = location.coords.longitude;
+          let geocode = await Location.reverseGeocodeAsync({
+            latitude: userLat,
+            longitude: userLon
+          });
+          
+          if (geocode && geocode.length > 0) {
+            currentRegion = geocode[0].region || '';
+            locName = `${geocode[0].city || geocode[0].district}, ${currentRegion}`;
+          }
+        } else {
+          throw new Error('Permission Denied');
+        }
+      } catch (e) {
+        // Fallback to IP-based Geolocation if Native fails (e.g. on Web)
+        try {
+          const res = await fetch('http://ip-api.com/json/');
+          const data = await res.json();
+          if (data && data.status === 'success') {
+            userLat = data.lat;
+            userLon = data.lon;
+            currentRegion = data.regionName;
+            locName = `${data.city}, ${data.regionName}`;
+          }
+        } catch (err) {
+          locName = 'Location Identified';
+        }
+      }
+
+      setLocationName(locName);
+
+      try {
         // Get Historical Base Score from NCRB Dataset (2001-2021 average)
         const historicalBaseScore = getHistoricalBaseScore(currentRegion);
 
-        // Fetch Live Crime Data (limited to 100 for speed)
+        // Fetch Live Crime Data dynamically (real-time listener instead of checking every 3 hours)
         const q = query(collection(db, 'community_reports'), orderBy('createdAt', 'desc'), limit(100));
-        const snapshot = await getDocs(q);
-        
-        let harassmentCount = 0;
-        let theftCount = 0;
-        let suspiciousCount = 0;
-        let lightingCount = 0;
+        const unsubscribe = onSnapshot(q, (snapshot) => {
+          let harassmentCount = 0;
+          let theftCount = 0;
+          let suspiciousCount = 0;
+          let lightingCount = 0;
 
-        snapshot.forEach((doc) => {
-          const data = doc.data();
-          if (data.category === 'Harassment') harassmentCount++;
-          else if (data.category === 'Theft' || data.category === 'Assault') theftCount++;
-          else if (data.category === 'Suspicious Activity') suspiciousCount++;
-          else if (data.category === 'Poor Lighting') lightingCount++;
+          snapshot.forEach((doc) => {
+            const data = doc.data();
+            if (data.latitude && data.longitude) {
+              const dist = getDistance(userLat, userLon, data.latitude, data.longitude);
+              if (dist > 50) return; // Only count incidents within 50km radius
+            }
+            
+            if (data.category === 'Harassment') harassmentCount++;
+            else if (data.category === 'Theft' || data.category === 'Assault') theftCount++;
+            else if (data.category === 'Suspicious Activity') suspiciousCount++;
+            else if (data.category === 'Poor Lighting') lightingCount++;
+          });
+
+          // Hybrid algorithm: Historical NCRB Baseline + Live Community Reports
+          const liveIncidentImpact = (harassmentCount * 15) + (theftCount * 20) + (suspiciousCount * 10) + (lightingCount * 5);
+          const totalScore = Math.min(100, historicalBaseScore + liveIncidentImpact);
+          let riskLevel = 'Low';
+          if (totalScore > 35) riskLevel = 'Moderate';
+          if (totalScore > 70) riskLevel = 'High';
+
+          const dynamicIncidents: any[] = [];
+          if (harassmentCount > 0) dynamicIncidents.push({ type: 'Harassment', count: harassmentCount, trend: 'up' });
+          if (theftCount > 0) dynamicIncidents.push({ type: 'Assault', count: theftCount, trend: 'stable' });
+          if (suspiciousCount > 0) dynamicIncidents.push({ type: 'Suspicious Activity', count: suspiciousCount, trend: 'up' });
+          if (lightingCount > 0) dynamicIncidents.push({ type: 'Poor Lighting', count: lightingCount, trend: 'down' });
+          
+          if (dynamicIncidents.length === 0) {
+             dynamicIncidents.push({ type: 'No Incidents', count: 0, trend: 'stable' });
+          }
+
+          setCrimeData(prev => ({
+            ...prev,
+            riskScore: totalScore,
+            baseScore: historicalBaseScore,
+            overallRisk: riskLevel,
+            recentIncidents: dynamicIncidents.sort((a, b) => b.count - a.count)
+          }));
+          setLoading(false);
+        }, (error) => {
+          console.error("Error listening to community reports: ", error);
+          setLoading(false);
         });
 
-        // Hybrid algorithm: Historical NCRB Baseline + Live Community Reports
-        const liveIncidentImpact = (harassmentCount * 15) + (theftCount * 20) + (suspiciousCount * 10) + (lightingCount * 5);
-        const totalScore = Math.min(100, historicalBaseScore + liveIncidentImpact);
-        let riskLevel = 'Low';
-        if (totalScore > 35) riskLevel = 'Moderate';
-        if (totalScore > 70) riskLevel = 'High';
-
-        const dynamicIncidents: any[] = [];
-        if (harassmentCount > 0) dynamicIncidents.push({ type: 'Harassment', count: harassmentCount, trend: 'up' });
-        if (theftCount > 0) dynamicIncidents.push({ type: 'Assault', count: theftCount, trend: 'stable' });
-        if (suspiciousCount > 0) dynamicIncidents.push({ type: 'Suspicious Activity', count: suspiciousCount, trend: 'up' });
-        if (lightingCount > 0) dynamicIncidents.push({ type: 'Poor Lighting', count: lightingCount, trend: 'down' });
-        
-        if (dynamicIncidents.length === 0) {
-           dynamicIncidents.push({ type: 'No Incidents', count: 0, trend: 'stable' });
-        }
-
-        setCrimeData(prev => ({
-          ...prev,
-          riskScore: totalScore,
-          baseScore: historicalBaseScore,
-          overallRisk: riskLevel,
-          recentIncidents: dynamicIncidents.sort((a, b) => b.count - a.count)
-        }));
-
+        // Cleanup listener when component unmounts
+        return () => unsubscribe();
       } catch (e) {
         setLocationName('Salt Lake Sector V, Kolkata'); // Fallback demo location
-      } finally {
         setLoading(false);
       }
     })();
@@ -130,7 +172,7 @@ export default function CrimeRateScreen() {
   return (
     <View style={[styles.container, { paddingTop: insets.top }]}>
       <View style={styles.header}>
-        <DrawerToggleButton tintColor={COLORS.textPrimary} />
+        <TouchableOpacity onPress={() => router.back()} style={{ padding: 8, marginLeft: -8 }}><Feather name="arrow-left" size={24} color="#111827" /></TouchableOpacity>
         <Text style={styles.headerTitle}>Local Crime Rate</Text>
         <View style={{ width: 40 }} />
       </View>
@@ -168,7 +210,9 @@ export default function CrimeRateScreen() {
               </View>
               <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
                 <Text style={{ color: COLORS.textSecondary, fontSize: 13 }}>Live Community Impact:</Text>
-                <Text style={{ color: COLORS.red, fontWeight: 'bold' }}>+{crimeData.riskScore - crimeData.baseScore}</Text>
+                <Text style={{ color: crimeData.riskScore >= crimeData.baseScore ? COLORS.red : COLORS.green, fontWeight: 'bold' }}>
+                  {crimeData.riskScore >= crimeData.baseScore ? '+' : ''}{crimeData.riskScore - crimeData.baseScore}
+                </Text>
               </View>
             </View>
           </View>
