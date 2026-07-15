@@ -94,9 +94,17 @@ export default function RootLayout() {
     <ClerkProvider publishableKey={publishableKey} tokenCache={tokenCache}>
       <SafeAreaProvider>
         <ThemeProvider value={colorScheme === "dark" ? DarkTheme : DefaultTheme}>
-          <View style={styles.webContainer}>
-            <InitialLayout />
-          </View>
+          {Platform.OS === 'web' ? (
+            <View style={styles.webDesktopBackground}>
+              <View style={styles.webContainer}>
+                <InitialLayout />
+              </View>
+            </View>
+          ) : (
+            <View style={styles.webContainer}>
+              <InitialLayout />
+            </View>
+          )}
           <StatusBar style="auto" />
         </ThemeProvider>
       </SafeAreaProvider>
@@ -105,17 +113,22 @@ export default function RootLayout() {
 }
 
 const styles = StyleSheet.create({
+  webDesktopBackground: {
+    flex: 1,
+    backgroundColor: '#F3F4F6',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   webContainer: {
     flex: 1,
     width: '100%',
     ...(Platform.OS === 'web' && {
       maxWidth: 500,
-      marginHorizontal: 'auto',
+      width: '100%',
+      height: '100%',
       backgroundColor: '#FFFFFF',
-      boxShadow: '0 0 20px rgba(0,0,0,0.1)',
-      borderLeftWidth: 1,
-      borderRightWidth: 1,
-      borderColor: '#E5E7EB',
+      boxShadow: '0 0 40px rgba(0,0,0,0.08)',
+      overflow: 'hidden',
     }),
   },
 });
