@@ -3,11 +3,9 @@ import { View, Text, StyleSheet } from 'react-native';
 import { Bot, CheckCircle2 } from 'lucide-react-native';
 import { ASSISTANT_NAME, ASSISTANT_DESCRIPTION } from '../constants/assistant.constants';
 
-interface Props {
-  isLocalMode: boolean;
-}
+interface Props {}
 
-export function AssistantProfileCard({ isLocalMode }: Props) {
+export function AssistantProfileCard({}: Props = {}) {
   return (
     <View style={styles.card}>
       <View style={styles.avatarContainer}>
@@ -26,7 +24,7 @@ export function AssistantProfileCard({ isLocalMode }: Props) {
         <View style={styles.statusRow}>
           <View style={styles.statusDot} />
           <Text style={styles.statusText}>
-            {isLocalMode ? 'Local safety responses' : 'Online'}
+            Offline (Blocked by Config)
           </Text>
         </View>
         

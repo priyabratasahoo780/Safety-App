@@ -1,6 +1,6 @@
 import { sosLogger } from '../../voice-sos/utils/logger';
-import { VoiceAIProvider } from '../fake-call/providers/VoiceAIProvider';
-import { OfflineNativeProvider } from '../fake-call/providers/offlineNativeProvider';
+import { VoiceAIProvider } from '../../fake-call/providers/VoiceAIProvider';
+import { OfflineNativeProvider } from '../../fake-call/providers/offlineNativeProvider';
 
 const LOG_SOURCE = 'AIFakeCallService';
 
@@ -70,77 +70,9 @@ export class AIFakeCallService implements VoiceAIProvider {
         console.warn("Offline provider failed, falling back to cloud if possible", error);
       }
     }
-    
-    // 2. If we are in Expo Go, fallback to Gemini Cloud (Because Expo Go cannot run local models)
-    try {
-      const apiKey = process.env.EXPO_PUBLIC_GEMINI_API_KEY;
-      if (!apiKey) {
-        sosLogger.warn(LOG_SOURCE, 'Gemini API key is not configured.');
-        return 'Beta, meri awaaz aa rahi hai? Network theek nahi hai.';
-      }
-
-      const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`;
-      
-      const contents = [
-        ...this.conversationHistory,
-        {
-          role: 'user',
-          parts: [
-            {
-              inlineData: {
-                mimeType: 'audio/m4a',
-                data: audioBase64,
-              },
-            },
-            {
-              text: "This is the audio from your child on the phone. Transcribe and understand EXACTLY what they are saying in this audio clip, and then reply dynamically and contextually as their father."
-            }
-          ]
-        }
-      ];
-
-      const requestBody = {
-        system_instruction: {
-          parts: [{ text: FATHER_SYSTEM_PROMPT }]
-        },
-        contents: contents,
-        generationConfig: {
-          temperature: 0.7,
-        }
-      };
-
-      const response = await fetch(geminiUrl, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(requestBody),
-      });
-
-      if (!response.ok) {
-        const errText = await response.text();
-        throw new Error(`Gemini API error: ${response.status} - ${errText}`);
-      }
-
-      const responseData = await response.json();
-      const textResult = responseData.candidates?.[0]?.content?.parts?.[0]?.text;
-
-      if (textResult) {
-        this.conversationHistory.push({
-          role: 'user',
-          parts: [{ text: "[Audio message sent by user]" }]
-        });
-        
-        this.conversationHistory.push({
-          role: 'model',
-          parts: [{ text: textResult.trim() }]
-        });
-        
-        return textResult.trim();
-      }
-
-      return 'Tum ho wahan? Main sun raha hoon.';
-    } catch (error) {
-      sosLogger.warn(LOG_SOURCE, 'Error getting AI response', { error: String(error) });
-      return 'Mujhe theek se sunai nahi diya, chalte raho.';
-    }
+    // 2. If we are in Expo Go, we must NOT use cloud fallbacks (no exposed API keys allowed).
+    // Instead, we strictly classify that native models are required.
+    sosLogger.warn(LOG_SOURCE, 'Offline native models are unavailable. Returning Requires Development Build classification.');
+    return "REQUIRES DEVELOPMENT BUILD";
   }
 }

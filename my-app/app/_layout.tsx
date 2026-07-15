@@ -8,11 +8,20 @@ import "react-native-reanimated";
 import { useEffect } from "react";
 import { useColorScheme } from "@/hooks/use-color-scheme";
 import { authService } from "@/src/services/authService";
+import { socketService } from "@/src/services/socketService";
 import { Platform, View, StyleSheet, LogBox } from "react-native";
 
 LogBox.ignoreLogs([
   "expo-notifications: Android Push notifications",
 ]);
+
+// Optimize performance by removing console logs in production
+if (!__DEV__) {
+  console.log = () => {};
+  console.warn = () => {};
+  console.error = () => {};
+  console.info = () => {};
+}
 const publishableKey = process.env.EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY!;
 
 // Auth guard: sirf drawer ko protect karta hai
@@ -28,6 +37,7 @@ function InitialLayout() {
 
     if (isSignedIn && clerkUser) {
       authService.clerkUserId = clerkUser.id;
+      socketService.connect(clerkUser.id);
       getToken().then((token) => {
         authService.clerkToken = token;
       }).catch(err => {
@@ -36,6 +46,7 @@ function InitialLayout() {
     } else {
       authService.clerkUserId = null;
       authService.clerkToken = null;
+      socketService.disconnect();
     }
 
     const segs = segments as string[];

@@ -3,7 +3,7 @@ import { authService } from '../../../src/services/authService';
 
 export class FirebaseGuardianRepository implements IGuardianRepository {
   async getRegisteredGuardians(userId: string): Promise<Guardian[]> {
-    console.log(`[FirebaseGuardianRepository] Fetching guardians from Firestore...`);
+    // console.log(`[FirebaseGuardianRepository] Fetching guardians from Firestore...`);
     const id = userId !== 'current_user' ? userId : authService.clerkUserId;
     if (!id) {
       console.warn('[FirebaseGuardianRepository] No authenticated user found. Returning mock Guardian for Hackathon Demo!');

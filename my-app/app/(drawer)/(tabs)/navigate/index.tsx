@@ -107,26 +107,29 @@ export default function NavigateScreen() {
     }
   };
 
-  useEffect(() => {
-    const delayDebounceFn = setTimeout(async () => {
-      if (destination.trim().length > 2) {
-        try {
-          const res = await fetch(`https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(destination)}&count=1&language=en&format=json`);
-          const data = await res.json();
-          if (data && data.results && data.results.length > 0) {
-            setDestinationCoords({ 
-              latitude: data.results[0].latitude, 
-              longitude: data.results[0].longitude 
-            });
-          }
-        } catch (e) {
-          console.warn("Geocoding failed", e);
+  const searchDestination = async () => {
+    if (destination.trim().length > 2) {
+      try {
+        setIsRouting(true); // Show loading indicator during geocoding
+        const res = await fetch(`https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(destination)}&format=json&limit=1`, {
+          headers: { 'User-Agent': 'SafetyApp/1.0' }
+        });
+        const data = await res.json();
+        if (data && data.length > 0) {
+          setDestinationCoords({ 
+            latitude: parseFloat(data[0].lat), 
+            longitude: parseFloat(data[0].lon) 
+          });
+        } else {
+          console.warn("No results found for destination");
+          setIsRouting(false);
         }
+      } catch (e) {
+        console.warn("Geocoding failed", e);
+        setIsRouting(false);
       }
-    }, 1000);
-
-    return () => clearTimeout(delayDebounceFn);
-  }, [destination]);
+    }
+  };
 
   const handleStartJourney = () => {
     const route = routes.find(r => r.id === selectedRoute);
@@ -181,6 +184,8 @@ export default function NavigateScreen() {
                   style={styles.textInput}
                   value={destination}
                   onChangeText={setDestination}
+                  onSubmitEditing={searchDestination}
+                  returnKeyType="search"
                   placeholder="Where to?"
                   placeholderTextColor="#9CA3AF"
                 />

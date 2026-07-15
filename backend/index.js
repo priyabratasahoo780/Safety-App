@@ -3,9 +3,31 @@ const express = require('express');
 const cors = require('cors');
 const axios = require('axios');
 
+const http = require('http');
+const { Server } = require('socket.io');
+
 const app = express();
+const server = http.createServer(app);
+const io = new Server(server, {
+  cors: {
+    origin: "*",
+    methods: ["GET", "POST"]
+  }
+});
+
 app.use(cors());
 app.use(express.json());
+
+const admin = require('firebase-admin');
+
+// Initialize Firebase Admin (Hackathon fallback allows implicit ADC or empty initialization)
+if (process.env.FIREBASE_SERVICE_ACCOUNT) {
+  const serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT);
+  admin.initializeApp({ credential: admin.credential.cert(serviceAccount) });
+} else {
+  admin.initializeApp();
+}
+const db = admin.firestore();
 
 // ─── Config ───────────────────────────────────────────────────────────────────
 const VONAGE_API_KEY    = process.env.VONAGE_API_KEY;
@@ -23,6 +45,63 @@ const verifyToken = (req, res, next) => {
   req.user = { uid: 'hackathon_demo_user' };
   next();
 };
+
+app.post('/api/guardians/accept', verifyToken, async (req, res) => {
+  try {
+    const { request } = req.body;
+    if (!request || !request.id || !request.fromUserId || !request.toUserId) {
+      return res.status(400).json({ error: 'Invalid request data' });
+    }
+
+    console.log(`\n🛡️ Processing Guardian Accept Request: ${request.id}`);
+
+    // 1. Update the request status
+    const requestRef = db.collection('guardian_requests').doc(request.id);
+    await requestRef.update({ status: 'accepted' });
+
+    // 2. Fetch both profiles
+    const fromRef = db.collection('users').doc(request.fromUserId);
+    const toRef = db.collection('users').doc(request.toUserId);
+
+    const [fromDoc, toDoc] = await Promise.all([fromRef.get(), toRef.get()]);
+
+    if (!fromDoc.exists || !toDoc.exists) {
+      return res.status(404).json({ error: 'One or both users not found' });
+    }
+
+    const fromProfile = fromDoc.data();
+    const toProfile = toDoc.data();
+
+    // 3. Create bidirectional contact entries
+    const fromContacts = fromProfile.trustedContacts || [];
+    const toContacts = toProfile.trustedContacts || [];
+
+    if (!fromContacts.some(c => c.safeSphereId === toProfile.safeSphereId)) {
+      fromContacts.push({
+        name: toProfile.fullName || "SafeSphere User",
+        phone: toProfile.phone || "",
+        relation: "Guardian",
+        safeSphereId: toProfile.safeSphereId
+      });
+      await fromRef.update({ trustedContacts: fromContacts });
+    }
+
+    if (!toContacts.some(c => c.safeSphereId === fromProfile.safeSphereId)) {
+      toContacts.push({
+        name: fromProfile.fullName || "SafeSphere User",
+        phone: fromProfile.phone || "",
+        relation: "Guardian",
+        safeSphereId: fromProfile.safeSphereId
+      });
+      await toRef.update({ trustedContacts: toContacts });
+    }
+
+    res.status(200).json({ success: true, message: 'Guardian request accepted securely' });
+  } catch (error) {
+    console.error('❌ Error processing guardian accept:', error.message);
+    res.status(500).json({ error: error.message });
+  }
+});
 
 /** Provider: CallMeBot (Free WhatsApp) */
 async function sendCallMeBotWhatsApp(phone, message) {
@@ -235,6 +314,31 @@ app.post('/api/emergency/call', verifyToken, async (req, res) => {
   res.json({ success: true, message: 'Call not implemented in hackathon mode' });
 });
 
+app.post('/api/notifications/send', verifyToken, async (req, res) => {
+  try {
+    const { messages } = req.body;
+    if (!messages || !messages.length) {
+      return res.status(400).json({ error: 'No messages provided' });
+    }
+
+    console.log(`\n🚨 Sending ${messages.length} Expo Push Notifications via secure backend...`);
+
+    const response = await axios.post('https://exp.host/--/api/v2/push/send', messages, {
+      headers: {
+        'Accept': 'application/json',
+        'Accept-encoding': 'gzip, deflate',
+        'Content-Type': 'application/json',
+      }
+    });
+
+    console.log(`✅ Push Response:`, JSON.stringify(response.data));
+    res.status(200).json({ success: true, data: response.data });
+  } catch (error) {
+    console.error('❌ Error sending push notification via backend:', error.message);
+    res.status(500).json({ error: error.message });
+  }
+});
+
 app.get('/health', (req, res) => {
   res.json({
     status: 'ok',
@@ -247,7 +351,57 @@ app.get('/health', (req, res) => {
 });
 
 const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => {
+
+// ─── Socket.io Handlers ───────────────────────────────────────────────────────
+io.on('connection', (socket) => {
+  console.log(`[Socket] User connected: ${socket.id}`);
+
+  socket.on('join_room', (userId) => {
+    if (userId) {
+      socket.join(userId);
+      console.log(`[Socket] User ${socket.id} joined room ${userId}`);
+    }
+  });
+
+  socket.on('trigger_emergency', (data) => {
+    console.log(`[Socket] 🚨 Emergency triggered by ${data.victimName} (${data.victimId})`);
+    if (data.guardianIds && Array.isArray(data.guardianIds)) {
+      data.guardianIds.forEach(guardianId => {
+        io.to(guardianId).emit('emergency_alert', {
+          incidentUserId: data.victimId,
+          victimName: data.victimName,
+          location: data.location,
+          battery: data.battery,
+          videoUrl: data.videoUrl,
+          type: 'emergency_alert',
+          timestamp: new Date().toISOString()
+        });
+        console.log(`[Socket] Alert forwarded to room ${guardianId}`);
+      });
+    }
+  });
+
+  socket.on('cancel_emergency', (data) => {
+    console.log(`[Socket] 🛑 Emergency CANCELLED by ${data.victimName} (${data.victimId})`);
+    if (data.guardianIds && Array.isArray(data.guardianIds)) {
+      data.guardianIds.forEach(guardianId => {
+        io.to(guardianId).emit('emergency_cancelled', {
+          incidentUserId: data.victimId,
+          victimName: data.victimName,
+          type: 'emergency_cancelled',
+          timestamp: new Date().toISOString()
+        });
+        console.log(`[Socket] Cancel forwarded to room ${guardianId}`);
+      });
+    }
+  });
+
+  socket.on('disconnect', () => {
+    console.log(`[Socket] User disconnected: ${socket.id}`);
+  });
+});
+
+server.listen(PORT, () => {
   console.log(`\n🚀 SafeSphere Backend on port ${PORT}`);
   console.log(`Providers: Vonage=${!!VONAGE_API_KEY} | Fast2SMS=${!!FAST2SMS_KEY} | Twilio=${!!TWILIO_FROM}`);
   console.log(`Health: http://localhost:${PORT}/health\n`);

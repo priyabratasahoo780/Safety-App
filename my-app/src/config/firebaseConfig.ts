@@ -8,7 +8,7 @@ import {
   GoogleAuthProvider,
   PhoneAuthProvider
 } from "firebase/auth";
-import { getFirestore } from "firebase/firestore";
+import { getFirestore, initializeFirestore, persistentLocalCache } from "firebase/firestore";
 import { Platform } from "react-native";
 import { getStorage } from "firebase/storage";
 import AsyncStorage from "@react-native-async-storage/async-storage";
@@ -43,7 +43,14 @@ const googleProvider = new GoogleAuthProvider();
 const phoneProvider = typeof window !== 'undefined' || Platform.OS !== 'web' ? new PhoneAuthProvider(auth) : null;
 
 // Initialize Cloud Firestore and Storage
-const db = getFirestore(app);
+let db;
+try {
+  db = initializeFirestore(app, {
+    localCache: persistentLocalCache({})
+  });
+} catch (e) {
+  db = getFirestore(app);
+}
 const storage = getStorage(app);
 
 // Centralized Google OAuth Client ID for Expo Auth Session

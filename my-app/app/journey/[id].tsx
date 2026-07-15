@@ -11,6 +11,7 @@ import {
 import { StatusBar } from 'expo-status-bar';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { Feather } from '@expo/vector-icons';
+import { journeyService } from '../../src/services/journeyService';
 
 const { width } = Dimensions.get('window');
 
@@ -24,6 +25,20 @@ export default function ActiveJourneyScreen() {
   const [journeyComplete, setJourneyComplete] = useState(false);
 
   useEffect(() => {
+    // Start global journey state when screen mounts
+    journeyService.startJourney(
+      id as string || '8492',
+      destination as string || 'Salt Lake Central Park',
+      initialMinutes
+    );
+
+    return () => {
+      // Ensure it ends if component unmounts unexpectedly
+      journeyService.endJourney();
+    };
+  }, []);
+
+  useEffect(() => {
     if (timeLeft > 0 && !journeyComplete) {
       const timer = setInterval(() => {
         setTimeLeft(prev => prev - 1);
@@ -31,6 +46,7 @@ export default function ActiveJourneyScreen() {
       return () => clearInterval(timer);
     } else if (timeLeft === 0 && !journeyComplete) {
       // Trigger SOS route automatically when time runs out!
+      journeyService.endJourney();
       router.replace('/sos/active');
     }
   }, [timeLeft, journeyComplete, router]);
@@ -47,6 +63,7 @@ export default function ActiveJourneyScreen() {
 
   const handleArrival = () => {
     setJourneyComplete(true);
+    journeyService.endJourney();
     router.replace('/(drawer)/(tabs)/home');
   };
 

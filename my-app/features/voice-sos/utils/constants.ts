@@ -195,10 +195,10 @@ export const HIGH_PRIORITY_PHRASES: string[] = [
 // ─── Decision Thresholds ────────────────────────────────────────────────────
 
 /** Confidence threshold to trigger emergency (0–100) */
-export const EMERGENCY_THRESHOLD = 60;  // Lowered: keyword alone can now trigger
+export const EMERGENCY_THRESHOLD = 85;
 
 /** Confidence threshold for high alert mode (0–100) */
-export const HIGH_ALERT_THRESHOLD = 40;
+export const HIGH_ALERT_THRESHOLD = 70;
 
 /** Confidence threshold below which system stays in monitoring mode */
 export const MONITORING_THRESHOLD = 50;

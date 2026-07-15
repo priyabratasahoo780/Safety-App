@@ -10,7 +10,8 @@ export class FirebaseStorageService implements IStorageService {
     emergencyId: string, 
     fileName: string, 
     localUri: string, 
-    type: 'audio' | 'video' | 'image'
+    type: 'audio' | 'video' | 'image',
+    onProgress?: (progress: number) => void
   ): Promise<string> {
     try {
       sosLogger.info(LOG_SOURCE, `Starting upload for ${type} evidence: ${fileName}`);
@@ -30,6 +31,7 @@ export class FirebaseStorageService implements IStorageService {
           (snapshot) => {
             const progress = (snapshot.bytesTransferred / snapshot.totalBytes) * 100;
             sosLogger.debug(LOG_SOURCE, `Upload is ${progress}% done`);
+            if (onProgress) onProgress(progress);
           },
           (error) => {
             sosLogger.warn(LOG_SOURCE, 'Failed to upload evidence to Firebase Storage', { error });

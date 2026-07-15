@@ -1,10 +1,10 @@
-import { Audio } from 'expo-av';
+import { AudioModule, RecordingPresets } from 'expo-audio';
 import { sosLogger } from '../utils/logger';
 
 const LOG_SOURCE = 'AudioEvidenceService';
 
 export class AudioEvidenceService {
-  private recording: Audio.Recording | null = null;
+  private recording: any | null = null;
   private isAudioRecording = false;
   private isVideoRecording = false;
 
@@ -18,22 +18,22 @@ export class AudioEvidenceService {
       this.isAudioRecording = true;
       sosLogger.info(LOG_SOURCE, 'Requesting permissions for audio evidence recording');
 
-      const permission = await Audio.requestPermissionsAsync();
+      const permission = await AudioModule.requestRecordingPermissionsAsync();
       if (permission.status !== 'granted') {
         sosLogger.warn(LOG_SOURCE, 'Audio recording permission denied');
         this.isAudioRecording = false;
         return null;
       }
 
-      await Audio.setAudioModeAsync({
-        allowsRecordingIOS: true,
-        playsInSilentModeIOS: true,
+      await AudioModule.setAudioModeAsync({
+        allowsRecording: true,
+        playsInSilentMode: true,
       });
 
       // CRITICAL FIX: Ensure previous recording instance is destroyed before creating a new one
       if (this.recording) {
         try {
-           await this.recording.stopAndUnloadAsync();
+           await this.recording.stop?.();
         } catch (e) {
            // Ignore errors from stale instances
         }
@@ -41,9 +41,9 @@ export class AudioEvidenceService {
       }
 
       sosLogger.info(LOG_SOURCE, 'Starting audio evidence recording...');
-      const { recording } = await Audio.Recording.createAsync(
-        Audio.RecordingOptionsPresets.HIGH_QUALITY
-      );
+      const recording = new AudioModule.AudioRecorder(RecordingPresets.HIGH_QUALITY);
+      await recording.prepareToRecordAsync();
+      recording.record();
       this.recording = recording;
 
       // Wait for the specified duration
@@ -62,8 +62,8 @@ export class AudioEvidenceService {
 
     try {
       sosLogger.info(LOG_SOURCE, 'Stopping audio evidence recording...');
-      await this.recording.stopAndUnloadAsync();
-      const uri = this.recording.getURI();
+      await this.recording.stop?.();
+      const uri = this.recording.uri;
       this.recording = null;
       this.isAudioRecording = false;
       return uri;

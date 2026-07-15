@@ -34,7 +34,7 @@ export const OFFLINE_MODELS: Record<string, ModelInfo> = {
 
 class OfflineModelManager {
   private static instance: OfflineModelManager;
-  private modelDirectory = FileSystem.documentDirectory + 'models/';
+  private modelDirectory = (FileSystem as any).documentDirectory + 'models/';
 
   private constructor() {}
 
@@ -75,7 +75,7 @@ class OfflineModelManager {
   createDownloadResumable(
     modelId: string, 
     onProgress: (progress: number) => void
-  ): FileSystem.DownloadResumable | null {
+  ): any | null {
     const model = OFFLINE_MODELS[modelId];
     if (!model) return null;
 

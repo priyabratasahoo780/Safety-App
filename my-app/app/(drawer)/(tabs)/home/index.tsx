@@ -51,6 +51,8 @@ import { useUser } from '@clerk/clerk-expo';
 import { FirebaseGuardianRepository } from '@/features/guardian/repositories/FirebaseGuardianRepository';
 import { auth } from '@/src/config/firebaseConfig';
 import { authService } from '@/src/services/authService';
+import { useUserProfile } from '@/src/context/UserProfileContext';
+import { journeyService, JourneyState } from '@/src/services/journeyService';
 
 const COLORS = {
   bg: '#EBF0F9', // Matched to the image's cool blue-gray
@@ -288,7 +290,16 @@ export default function HomeScreen() {
   const [location, setLocation] = useState<Location.LocationObject | null>(null);
   const [address, setAddress] = useState<string>('Locating...');
   const [trustedContacts, setTrustedContacts] = useState<any[]>([]);
-  const [userProfile, setUserProfile] = useState<any>(null);
+  const { userProfile, refreshProfile } = useUserProfile();
+  
+  const [journeyState, setJourneyState] = useState<JourneyState>(journeyService.getState());
+
+  useEffect(() => {
+    const unsubscribe = journeyService.subscribe((state) => {
+      setJourneyState(state);
+    });
+    return () => unsubscribe();
+  }, []);
 
   const { greeting, GreetingIcon, greetingColor } = React.useMemo(() => {
     const hour = new Date().getHours();
@@ -301,19 +312,18 @@ export default function HomeScreen() {
       const loadContacts = async () => {
         try {
           if (!user?.id) return;
+          // Refresh from server on every focus
+          await refreshProfile();
           const profile = await authService.getUserProfile(user.id);
-          if (profile) {
-            setUserProfile(profile);
-            if (profile.trustedContacts) {
-              setTrustedContacts(profile.trustedContacts);
-            }
+          if (profile && profile.trustedContacts) {
+            setTrustedContacts(profile.trustedContacts);
           }
         } catch (e) {
-          console.log('Failed to load contacts', e);
+          // console.log('Failed to load contacts', e);
         }
       };
       loadContacts();
-    }, [])
+    }, [user?.id])
   );
 
   useEffect(() => {
@@ -323,10 +333,10 @@ export default function HomeScreen() {
         const voiceService = GeminiVoiceService.getInstance();
         
         if (userProfile?.safetyPreferences?.aiVoiceSos) {
-          console.log('[Home] Starting Gemini Voice Command bot based on safetyPreferences...');
+          // console.log('[Home] Starting Gemini Voice Command bot based on safetyPreferences...');
           await voiceService.startListening();
         } else {
-          console.log('[Home] Stopping Gemini Voice Command bot (disabled in safetyPreferences)...');
+          // console.log('[Home] Stopping Gemini Voice Command bot (disabled in safetyPreferences)...');
           await voiceService.stopListening();
         }
       } catch (err) {
@@ -437,7 +447,7 @@ export default function HomeScreen() {
                 <GreetingIcon size={14} color={greetingColor} style={{ marginRight: 6 }} />
                 <Text style={styles.greetingSmall}>{greeting}</Text>
               </View>
-              <Text style={styles.greetingName}>{user?.firstName || 'Stay Safe'}</Text>
+              <Text style={styles.greetingName}>{userProfile?.fullName || user?.firstName || 'Stay Safe'}</Text>
               <Text style={styles.greetingSub}>Your safety is our priority.</Text>
             </View>
           </View>
@@ -457,7 +467,7 @@ export default function HomeScreen() {
               onPress={() => router.push('/(drawer)/profile')}
             >
               <Image
-                source={{ uri: `https://ui-avatars.com/api/?name=${encodeURIComponent(user?.firstName ? (user.lastName ? `${user.firstName} ${user.lastName}` : user.firstName) : 'User')}&background=6D35E8&color=fff` }}
+                source={{ uri: `https://ui-avatars.com/api/?name=${encodeURIComponent(userProfile?.fullName || (user?.firstName ? (user.lastName ? `${user.firstName} ${user.lastName}` : user.firstName) : 'User'))}&background=6D35E8&color=fff` }}
                 style={{ width: 28, height: 28, borderRadius: 14 }}
               />
             </NeumorphicButton>
@@ -593,27 +603,39 @@ export default function HomeScreen() {
         <View style={styles.sectionHeader}>
           <Text style={styles.sectionTitle}>Active Journey</Text>
         </View>
-        <Pressable onPress={() => router.push('/(drawer)/live-tracking')}>
-          <NeumorphicCard padding={0} style={{ overflow: 'hidden', marginBottom: 28 }}>
-            <View style={{ height: 160, width: '100%' }}>
-              <View pointerEvents="none" style={{ width: '100%', height: '100%' }}>
-                <LiveMap location={location} />
-              </View>
-              <LinearGradient
-                colors={['transparent', 'rgba(17,22,56,0.85)']}
-                style={StyleSheet.absoluteFillObject}
-                pointerEvents="none"
-              />
-              <View style={styles.journeyOverlay} pointerEvents="none">
-                <View style={styles.journeyPulse}>
-                  <PulseDot color={COLORS.green} />
-                  <Text style={styles.journeyOverlayTitle}>Live Tracking Active</Text>
+        {journeyState.isActive ? (
+          <Pressable onPress={() => router.push('/(drawer)/live-tracking')}>
+            <NeumorphicCard padding={0} style={{ overflow: 'hidden', marginBottom: 28 }}>
+              <View style={{ height: 160, width: '100%' }}>
+                <View pointerEvents="none" style={{ width: '100%', height: '100%' }}>
+                  <LiveMap location={location} />
                 </View>
-                <Text style={styles.journeyOverlaySub}>Sharing your location securely...</Text>
+                <LinearGradient
+                  colors={['transparent', 'rgba(17,22,56,0.85)']}
+                  style={StyleSheet.absoluteFillObject}
+                  pointerEvents="none"
+                />
+                <View style={styles.journeyOverlay} pointerEvents="none">
+                  <View style={styles.journeyPulse}>
+                    <PulseDot color={COLORS.green} />
+                    <Text style={styles.journeyOverlayTitle}>Live Tracking Active</Text>
+                  </View>
+                  <Text style={styles.journeyOverlaySub}>Sharing your location securely...</Text>
+                </View>
               </View>
-            </View>
-          </NeumorphicCard>
-        </Pressable>
+            </NeumorphicCard>
+          </Pressable>
+        ) : (
+          <Pressable onPress={() => router.push('/(drawer)/(tabs)/navigate')}>
+            <NeumorphicCard padding={20} style={{ marginBottom: 28, alignItems: 'center' }}>
+              <View style={{ width: 48, height: 48, borderRadius: 24, backgroundColor: COLORS.purpleLight, justifyContent: 'center', alignItems: 'center', marginBottom: 12 }}>
+                <Navigation size={24} color={COLORS.purplePrimary} />
+              </View>
+              <Text style={{ fontSize: 16, fontWeight: '700', color: COLORS.textPrimary, marginBottom: 4 }}>No Active Journey</Text>
+              <Text style={{ fontSize: 13, color: COLORS.textSecondary, textAlign: 'center' }}>Start a Safe Route to enable live tracking and guardian monitoring.</Text>
+            </NeumorphicCard>
+          </Pressable>
+        )}
 
         {/* Current Location Address Card */}
         <NeumorphicCard padding={12} style={{ marginBottom: 28 }}>

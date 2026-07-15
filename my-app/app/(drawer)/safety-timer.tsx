@@ -20,7 +20,7 @@ export default function SafetyTimerScreen() {
   const [selectedDuration, setSelectedDuration] = useState(15 * 60);
 
   useEffect(() => {
-    let interval: NodeJS.Timeout;
+    let interval: ReturnType<typeof setInterval>;
     if (isActive && remainingSeconds > 0) {
       interval = setInterval(() => {
         setRemainingSeconds((prev) => prev - 1);

@@ -3,8 +3,8 @@ import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator, Alert, Dim
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Feather } from '@expo/vector-icons';
-import MapView, { Marker } from 'react-native-maps';
-import { Video, ResizeMode } from 'expo-av';
+import MapView, { Marker } from '../../../components/MapViewProxy';
+import { useVideoPlayer, VideoView } from 'expo-video';
 import { SOSIncident, sosIncidentService } from '../../../features/emergency/services/sosIncidentService';
 import { doc, getDoc } from 'firebase/firestore';
 import { db } from '../../../src/config/firebaseConfig';
@@ -18,7 +18,10 @@ export default function GuardianTrackingScreen() {
   const [incident, setIncident] = useState<SOSIncident | null>(null);
   const [protectedUser, setProtectedUser] = useState<any>(null);
   const [loading, setLoading] = useState(true);
-  const videoRef = useRef<Video>(null);
+  const player = useVideoPlayer((incident as any)?.evidenceUrl || null, player => {
+    player.loop = true;
+    player.play();
+  });
 
   useEffect(() => {
     if (!id) return;
@@ -129,20 +132,17 @@ export default function GuardianTrackingScreen() {
       </View>
 
       {/* Video Evidence Overlay */}
-      {incident.evidenceStatus === 'uploaded' && incident.evidenceUrl && (
+      {(incident as any).evidenceStatus === 'uploaded' && (incident as any).evidenceUrl && (
         <View style={styles.videoContainer}>
           <View style={styles.videoHeader}>
             <Feather name="video" size={16} color="#FFFFFF" />
             <Text style={styles.videoTitle}>Live Evidence Captured</Text>
           </View>
-          <Video
-            ref={videoRef}
+          <VideoView
             style={styles.videoPlayer}
-            source={{ uri: incident.evidenceUrl }}
-            useNativeControls
-            resizeMode={ResizeMode.COVER}
-            isLooping
-            shouldPlay
+            player={player}
+            allowsFullscreen
+            allowsPictureInPicture
           />
         </View>
       )}

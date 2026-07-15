@@ -21,7 +21,7 @@ export function AIAssistantScreen() {
   
   const { 
     messages, inputText, setInputText, isTyping, 
-    sendMessage, clearConversation, isLocalMode 
+    sendMessage, clearConversation
   } = useAIChat();
 
   const [isMoreModalVisible, setIsMoreModalVisible] = useState(false);
@@ -98,7 +98,7 @@ export function AIAssistantScreen() {
           showsVerticalScrollIndicator={false}
           ListHeaderComponent={
             <>
-              <AssistantProfileCard isLocalMode={isLocalMode} />
+              <AssistantProfileCard />
               <View style={styles.todayDivider}>
                 <View style={styles.todayBadge}>
                   <Text style={styles.todayText}>Today</Text>

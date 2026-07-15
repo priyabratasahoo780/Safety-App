@@ -9,7 +9,7 @@ import { StatusBar } from 'expo-status-bar';
 
 export default function OfflineModelsScreen() {
   const router = useRouter();
-  const [modelStates, setModelStates] = useState<Record<string, { exists: boolean, progress: number, downloading: boolean, resumable: FileSystem.DownloadResumable | null }>>({});
+  const [modelStates, setModelStates] = useState<Record<string, { exists: boolean, progress: number, downloading: boolean, resumable: any }>>({});
 
   useEffect(() => {
     checkModels();
@@ -115,34 +115,34 @@ export default function OfflineModelsScreen() {
         
         {state.downloading && (
           <View style={styles.progressContainer}>
-            <View style={[styles.progressBar, { width: \`\${state.progress * 100}%\` }]} />
+            <View style={[styles.progressBar, { width: `${state.progress * 100}%` }]} />
             <Text style={styles.progressText}>{Math.round(state.progress * 100)}%</Text>
           </View>
         )}
 
         <View style={styles.actions}>
-          {!state.exists && !state.downloading && !state.resumable && (
+          {!(state as any).exists && !(state as any).downloading && !(state as any).resumable && (
             <Pressable style={styles.button} onPress={() => handleDownload(model.id)}>
               <Download color="#FFF" size={16} />
               <Text style={styles.buttonText}>Download</Text>
             </Pressable>
           )}
 
-          {state.downloading && (
+          {(state as any).downloading && (
             <Pressable style={styles.buttonSecondary} onPress={() => handlePause(model.id)}>
               <Pause color="#FFF" size={16} />
               <Text style={styles.buttonText}>Pause</Text>
             </Pressable>
           )}
 
-          {!state.downloading && state.resumable && (
+          {!(state as any).downloading && (state as any).resumable && (
             <Pressable style={styles.button} onPress={() => handleResume(model.id)}>
               <Play color="#FFF" size={16} />
               <Text style={styles.buttonText}>Resume</Text>
             </Pressable>
           )}
 
-          {state.exists && (
+          {(state as any).exists && (
             <Pressable style={styles.buttonDestructive} onPress={() => handleDelete(model.id)}>
               <Trash2 color="#FFF" size={16} />
               <Text style={styles.buttonText}>Delete</Text>

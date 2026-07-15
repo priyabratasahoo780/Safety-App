@@ -8,7 +8,7 @@ import { WakeWordService } from '../services/wakeword.service';
 
 import { FirebaseEmergencyRepository } from '../../emergency/repositories/FirebaseEmergencyRepository';
 import { FirebaseGuardianRepository } from '../../guardian/repositories/FirebaseGuardianRepository';
-import { MockStorageService } from '../../emergency/services/MockStorageService';
+import { FirebaseStorageService } from '../../emergency/repositories/FirebaseStorageService';
 import { AudioEvidenceService } from '../services/evidence.service';
 import { MockNotificationService } from '../../guardian/services/MockNotificationService';
 import { TwilioService } from '../../adapters/providers/TwilioService';
@@ -40,7 +40,7 @@ export class ServiceLocator {
 
     this.emergency = new EmergencyService({
       emergencyRepo: new FirebaseEmergencyRepository(),
-      storageService: new MockStorageService(),
+      storageService: new FirebaseStorageService(),
       evidenceService: new AudioEvidenceService(),
       guardianRepo: new FirebaseGuardianRepository(),
       notificationService: new MockNotificationService(),
@@ -58,7 +58,7 @@ export class ServiceLocator {
     } else {
       sosLogger.debug('ServiceLocator', 'Reusing existing instance');
       if (__DEV__) {
-        console.log('Reusing existing instance');
+        // console.log('Reusing existing instance');
       }
     }
     return ServiceLocator.instance;

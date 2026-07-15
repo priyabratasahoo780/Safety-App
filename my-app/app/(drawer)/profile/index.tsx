@@ -20,6 +20,7 @@ import { useUser, useAuth } from '@clerk/clerk-expo';
 import { authService } from '../../../src/services/authService';
 import { useGuardianConnections } from '../../../features/guardian/hooks/useGuardianConnections';
 import { guardianService } from '../../../features/guardian/services/guardianService';
+import { useUserProfile } from '../../../src/context/UserProfileContext';
 
 interface Contact {
   id: string;
@@ -35,6 +36,7 @@ export default function ProfileScreen() {
 
   const [contacts, setContacts] = useState<Contact[]>([]);
   const [userProfile, setUserProfile] = useState<any>(null);
+  const { updateProfile: updateContextProfile } = useUserProfile();
 
   // New contact form state
   const [searchId, setSearchId] = useState('');
@@ -182,11 +184,15 @@ export default function ProfileScreen() {
   const handleSaveProfile = async () => {
     try {
       if (!user?.id) return;
+      // Update Firebase
       await authService.updateUserProfile(user.id, {
         fullName: editFullName,
         phone: editPhone
       });
+      // Update local state
       setUserProfile((prev: any) => ({ ...prev, fullName: editFullName, phone: editPhone }));
+      // CRITICAL: Update the global context so Home screen updates instantly!
+      await updateContextProfile({ fullName: editFullName, phone: editPhone });
       setIsEditingProfile(false);
     } catch (e) {
       Alert.alert('Error', 'Failed to save profile changes');

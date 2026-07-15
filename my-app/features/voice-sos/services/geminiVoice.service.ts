@@ -1,4 +1,4 @@
-import { Audio } from 'expo-av';
+import { AudioModule } from 'expo-audio';
 import { ServiceLocator } from '../utils/ServiceLocator';
 import { EmergencyStatus, NetworkStatus } from '../../emergency/types/emergency.types';
 import { SupportedLanguage } from '../types/voice.types';
@@ -9,7 +9,7 @@ const LOG_SOURCE = 'GeminiVoiceService';
 
 export class GeminiVoiceService {
   private static instance: GeminiVoiceService | null = null;
-  private recording: Audio.Recording | null = null;
+  private recording: any | null = null;
   private isListening: boolean = false;
   private currentLoopId: number = 0;
 
@@ -32,16 +32,17 @@ export class GeminiVoiceService {
     }
 
     try {
-      const permission = await Audio.requestPermissionsAsync();
+      const permission = await AudioModule.requestRecordingPermissionsAsync();
       if (permission.status !== 'granted') {
         sosLogger.warn(LOG_SOURCE, 'Microphone permission denied for voice command bot');
         return false;
       }
 
-      await Audio.setAudioModeAsync({
-        allowsRecordingIOS: true,
-        playsInSilentModeIOS: true,
-        staysActiveInBackground: true,
+      await AudioModule.setAudioModeAsync({
+        allowsRecording: true,
+        playsInSilentMode: true,
+        shouldPlayInBackground: true,
+        allowsBackgroundRecording: true,
       });
 
       this.isListening = true;
@@ -70,7 +71,7 @@ export class GeminiVoiceService {
 
     if (this.recording) {
       try {
-        await this.recording.stopAndUnloadAsync();
+        await this.recording.stop?.();
         sosLogger.info(LOG_SOURCE, 'Stopped active audio recording instance');
       } catch (e) {
         // Ignore errors from stopping
@@ -92,27 +93,23 @@ export class GeminiVoiceService {
     const MAX_SILENT_CHUNK_DURATION_MS = 6000;
 
     while (this.isListening && loopId === this.currentLoopId) {
-      let recordingInstance: Audio.Recording | null = null;
+      let recordingInstance: any | null = null;
       try {
         sosLogger.debug(LOG_SOURCE, 'Preparing new audio recording chunk...');
 
-        recordingInstance = new Audio.Recording();
-        await recordingInstance.prepareToRecordAsync({
+        recordingInstance = new AudioModule.AudioRecorder({
           isMeteringEnabled: true,
           android: {
             extension: '.m4a',
-            outputFormat: 2, // MPEG_4
-            audioEncoder: 3, // AAC
+            outputFormat: 'default',
+            audioEncoder: 'default',
             sampleRate: 16000,
-            numberOfChannels: 1,
-            bitRate: 64000,
           },
           ios: {
             extension: '.m4a',
-            audioQuality: 0x7F, // max
+            audioQuality: 127,
             sampleRate: 16000,
-            numberOfChannels: 1,
-            bitRate: 64000,
+            bitRateStrategy: 0,
             linearPCMBitDepth: 16,
             linearPCMIsBigEndian: false,
             linearPCMIsFloat: false,
@@ -125,7 +122,7 @@ export class GeminiVoiceService {
         let spikeDetected = false;
         let spikeTime = 0;
 
-        recordingInstance.setOnRecordingStatusUpdate((status) => {
+        recordingInstance.addListener('recordingStatusUpdate', (status: any) => {
           if (status.isRecording && status.metering !== undefined) {
             // Check for sound peak above threshold
             if (status.metering > VOLUME_SPIKE_THRESHOLD_DB && !spikeDetected) {
@@ -136,7 +133,8 @@ export class GeminiVoiceService {
           }
         });
 
-        await recordingInstance.startAsync();
+        await recordingInstance.prepareToRecordAsync();
+        recordingInstance.record();
 
         // Monitor loop for this chunk
         const startTime = Date.now();
@@ -155,11 +153,11 @@ export class GeminiVoiceService {
         }
 
         // Stop current chunk
-        await recordingInstance.stopAndUnloadAsync();
+        await recordingInstance.stop?.();
         this.recording = null;
 
         if (this.isListening && loopId === this.currentLoopId && spikeDetected) {
-          const uri = recordingInstance.getURI();
+          const uri = recordingInstance.uri;
           if (uri) {
             // Run analysis asynchronously so we can start the next recording chunk immediately
             this.analyzeAudioForSOS(uri);
@@ -170,7 +168,7 @@ export class GeminiVoiceService {
         sosLogger.warn(LOG_SOURCE, 'Error in voice command monitoring loop', { error: String(error) });
         if (recordingInstance) {
           try {
-            await recordingInstance.stopAndUnloadAsync();
+            await recordingInstance.stop?.();
           } catch (e) {}
         }
         // Sleep before retrying to prevent rapid loops

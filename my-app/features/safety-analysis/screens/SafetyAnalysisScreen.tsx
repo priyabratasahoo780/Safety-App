@@ -65,7 +65,7 @@ export const SafetyAnalysisScreen = () => {
         </TouchableOpacity>
 
         <View style={styles.headerTitleContainer}>
-          <Text style={styles.headerTitle}>AI Safety Analysis</Text>
+          <Text style={styles.headerTitle}>Safety Analysis</Text>
           <Text style={styles.headerSubtitle}>Your personalized safety overview</Text>
         </View>
 

@@ -5,6 +5,7 @@ import { useRouter } from 'expo-router';
 import { Feather } from '@expo/vector-icons';
 import { DrawerToggleButton } from '@react-navigation/drawer';
 import { authService } from '../../src/services/authService';
+import { guardianService } from '../../src/services/guardianService';
 
 export default function AddContactScreen() {
   const router = useRouter();
@@ -15,36 +16,52 @@ export default function AddContactScreen() {
   const [loading, setLoading] = useState(false);
 
   const handleSaveContact = async () => {
-    if (!name || !phone) {
-      Alert.alert('Error', 'Please enter both name and phone number.');
+    if (!name && !safeSphereId) {
+      Alert.alert('Error', 'Please enter a Name or a SafeSphere ID.');
+      return;
+    }
+    if (!safeSphereId && !phone) {
+      Alert.alert('Error', 'Please enter a Phone Number for manual contacts.');
       return;
     }
 
     setLoading(true);
     try {
-      const profile = await authService.getUserProfile();
-      const currentContacts = profile?.trustedContacts || [];
+      const cleanSafeSphereId = safeSphereId.trim().toUpperCase();
 
-      const newContact = {
-        name,
-        phone,
-        relation,
-        safeSphereId: safeSphereId.trim().toUpperCase() || undefined,
-      };
+      if (cleanSafeSphereId) {
+        // Send a request to the other user's app instead of statically saving it
+        await guardianService.sendRequest(cleanSafeSphereId);
+        
+        Alert.alert('Request Sent!', `A Guardian request has been sent to ${cleanSafeSphereId}. You will be connected when they accept.`, [
+          { text: 'OK', onPress: () => router.back() }
+        ]);
+      } else {
+        // Fallback: Save a manual SMS/WhatsApp contact without the app
+        const profile = await authService.getUserProfile();
+        const currentContacts = profile?.trustedContacts || [];
 
-      await authService.updateUserProfile({
-        trustedContacts: [...currentContacts, newContact],
-      });
+        const newContact = {
+          name,
+          phone,
+          relation,
+        };
 
-      Alert.alert('Success', 'Guardian added successfully!', [
-        { text: 'OK', onPress: () => router.back() }
-      ]);
+        await authService.updateUserProfile({
+          trustedContacts: [...currentContacts, newContact],
+        });
+
+        Alert.alert('Success', 'Manual SMS Guardian added successfully!', [
+          { text: 'OK', onPress: () => router.back() }
+        ]);
+      }
     } catch (error: any) {
       Alert.alert('Error', error.message || 'Failed to add guardian.');
     } finally {
       setLoading(false);
     }
   };
+
 
   return (
     <SafeAreaView style={styles.container}>

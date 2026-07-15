@@ -7,7 +7,6 @@ export function useAIChat() {
   const [messages, setMessages] = useState<ChatMessage[]>(INITIAL_DEMO_CONVERSATION);
   const [inputText, setInputText] = useState('');
   const [isTyping, setIsTyping] = useState(false);
-  const [isLocalMode, setIsLocalMode] = useState(true); // Default to true if Gemini is not set
 
   // Use a ref to prevent duplicate sends
   const isRequestPending = useRef(false);
@@ -45,11 +44,7 @@ export function useAIChat() {
         status: 'sent',
       };
 
-      if (response.isFallback) {
-        setIsLocalMode(true);
-      } else {
-        setIsLocalMode(false);
-      }
+      // No local mode handling needed anymore
 
       setMessages(prev => [...prev, assistantMsg]);
     } catch (error) {
@@ -79,6 +74,5 @@ export function useAIChat() {
     isTyping,
     sendMessage,
     clearConversation,
-    isLocalMode,
   };
 }

@@ -266,12 +266,6 @@ export class DecisionEngine {
       signals.timeScore > 50,
     ].filter(Boolean).length;
 
-    // HACKATHON OVERRIDE: For the demo, if keyword is detected with high confidence, trigger immediately
-    if (signals.keywordScore > 70) {
-      sosLogger.info(LOG_SOURCE, 'Hackathon override: Keyword detected, triggering immediately', { keywordScore: signals.keywordScore });
-      return 100; // Force trigger
-    }
-
     if (elevatedSignals < 2 && adjustedScore >= EMERGENCY_THRESHOLD) {
       // Cap at HIGH_ALERT if only one signal is elevated
       adjustedScore = Math.min(adjustedScore, HIGH_ALERT_THRESHOLD);
@@ -279,6 +273,16 @@ export class DecisionEngine {
         elevatedSignals,
         cappedScore: adjustedScore,
       });
+    }
+
+    // SAFEGUARD 3: If only keyword is elevated (no emotion or sound), cap it
+    if (
+      signals.keywordScore > 50 &&
+      signals.emotionScore <= 50 &&
+      signals.soundScore <= 50
+    ) {
+      adjustedScore = Math.min(adjustedScore, HIGH_ALERT_THRESHOLD);
+      sosLogger.info(LOG_SOURCE, 'Safeguard: keyword-only cap applied');
     }
 
     // EXTREME DISTRESS OVERRIDE (National Hackathon Rule)
@@ -292,7 +296,7 @@ export class DecisionEngine {
     
     // LEVEL 1: IMMEDIATE EMERGENCY (High Priority Phrases)
     let isHighPriority = false;
-    if (textLower && signals.keywordScore > 50) {
+    if (!signals.isFalseAlarmContext && textLower && signals.keywordScore > 50) {
       for (const phrase of HIGH_PRIORITY_PHRASES) {
         if (textLower.includes(phrase)) {
           isHighPriority = true;

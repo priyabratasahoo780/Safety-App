@@ -107,7 +107,7 @@ export class MicrophoneService {
     // Stop the recording
     try {
       if (this.recording) {
-        await this.recording.stopAndUnloadAsync?.();
+        await this.recording.stop?.();
         this.recording = null;
       }
     } catch (error) {
@@ -225,45 +225,43 @@ export class MicrophoneService {
    */
   private async initializeRecording(): Promise<void> {
     try {
-      const { Audio } = await import('expo-av');
+      const { AudioModule } = await import('expo-audio');
 
       // Configure audio mode for background recording
-      await Audio.setAudioModeAsync({
-        allowsRecordingIOS: true,
-        playsInSilentModeIOS: true,
-        staysActiveInBackground: true,
+      await AudioModule.setAudioModeAsync({
+        allowsRecording: true,
+        playsInSilentMode: true,
+        shouldPlayInBackground: true,
+        allowsBackgroundRecording: true,
       });
 
       // Create and start recording
-      const { recording } = await Audio.Recording.createAsync(
-        {
-          isMeteringEnabled: true, // We need this for volume analysis
-          android: {
-            extension: '.wav',
-            outputFormat: 3, // THREE_GPP
-            audioEncoder: 1, // AMR_NB
-            sampleRate: this.config.sampleRate,
-            numberOfChannels: this.config.channels,
-            bitRate: 128000,
-          },
-          ios: {
-            extension: '.wav',
-            audioQuality: 0x7F, // max
-            sampleRate: this.config.sampleRate,
-            numberOfChannels: this.config.channels,
-            bitRate: 128000,
-            linearPCMBitDepth: 16,
-            linearPCMIsBigEndian: false,
-            linearPCMIsFloat: false,
-          },
-          web: {
-            mimeType: 'audio/webm',
-            bitsPerSecond: 128000,
-          },
+      const recording = new AudioModule.AudioRecorder({
+        isMeteringEnabled: true,
+        android: {
+          extension: '.wav',
+          outputFormat: 'default',
+          audioEncoder: 'default',
+          sampleRate: this.config.sampleRate,
         },
-        this.onRecordingStatusUpdate.bind(this),
-        100 // Update interval in ms
-      );
+        ios: {
+          extension: '.wav',
+          audioQuality: 127, // max
+          sampleRate: this.config.sampleRate,
+          bitRateStrategy: 0,
+          linearPCMBitDepth: 16,
+          linearPCMIsBigEndian: false,
+          linearPCMIsFloat: false,
+        },
+        web: {
+          mimeType: 'audio/webm',
+          bitsPerSecond: 128000,
+        },
+      });
+
+      await recording.prepareToRecordAsync();
+      recording.addListener('recordingStatusUpdate', this.onRecordingStatusUpdate.bind(this));
+      recording.record();
 
       this.recording = recording;
 

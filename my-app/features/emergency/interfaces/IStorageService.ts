@@ -11,7 +11,7 @@ export interface IStorageService {
    * @param type The type of evidence ('audio' | 'video' | 'image').
    * @returns A secure download URL to access the evidence.
    */
-  uploadEvidence(emergencyId: string, fileName: string, localUri: string, type: 'audio' | 'video' | 'image'): Promise<string>;
+  uploadEvidence(emergencyId: string, fileName: string, localUri: string, type: 'audio' | 'video' | 'image', onProgress?: (progress: number) => void): Promise<string>;
 
   /**
    * Retrieves a list of evidence URLs associated with an emergency.

@@ -1,0 +1,59 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    // Helper function to check if user is authenticated
+    function isAuth() {
+      return request.auth != null;
+    }
+    
+    // Helper function to check if user owns the document
+    function isOwner(userId) {
+      return isAuth() && request.auth.uid == userId;
+    }
+
+    // 1. Users Collection
+    match /users/{userId} {
+      // Anyone authenticated can read user profiles (needed for SafeSphere ID lookups)
+      allow read: if isAuth();
+      // Only the owner can create or update their own profile
+      allow write: if isOwner(userId);
+    }
+
+    // 2. Guardian Requests Collection
+    match /guardian_requests/{requestId} {
+      // Sender and receiver can read the request
+      allow read: if isAuth() && (request.auth.uid == resource.data.fromUserId || request.auth.uid == resource.data.toUserId);
+      // Only the sender can create a request, and they must set fromUserId to themselves
+      allow create: if isAuth() && request.auth.uid == request.resource.data.fromUserId;
+      // Only the receiver can update a request (e.g. to reject it)
+      // Accepting requires backend dual-writes, which bypasses rules anyway
+      allow update: if isAuth() && request.auth.uid == resource.data.toUserId;
+      allow delete: if false;
+    }
+
+    // 3. Guardian Connections Collection
+    match /guardianConnections/{connId} {
+      allow read: if isAuth() && (request.auth.uid == resource.data.guardianUserId || request.auth.uid == resource.data.protectedUserId);
+      // Handled by backend or strictly limited
+      allow write: if false; 
+    }
+
+    // 4. SOS Incidents
+    match /sosIncidents/{incidentId} {
+      // Any authenticated user can read an incident (assuming guardians query it)
+      // In a production app, we would restrict this to only the guardians of the protectedUserId
+      allow read: if isAuth();
+      // Only the victim (protectedUserId) can create or update their own incidents
+      allow create, update: if isAuth() && request.auth.uid == request.resource.data.protectedUserId;
+      allow delete: if false;
+      
+      // Subcollection for location updates
+      match /sosLocationUpdates/{updateId} {
+        // Only the victim of the parent incident can post location updates
+        allow create: if isAuth() && request.auth.uid == get(/databases/$(database)/documents/sosIncidents/$(incidentId)).data.protectedUserId;
+        allow read: if isAuth();
+      }
+    }
+  }
+}

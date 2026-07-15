@@ -12,11 +12,15 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { useRouter } from 'expo-router';
+import { locationService } from '../../src/services/locationService';
 import { Feather, MaterialCommunityIcons } from '@expo/vector-icons';
 import { Platform, Linking } from 'react-native';
 import { useAuth } from '@clerk/clerk-expo';
 import * as SMS from 'expo-sms';
 import * as Location from 'expo-location';
+import * as Battery from 'expo-battery';
+import * as FileSystem from 'expo-file-system';
+import { socketService } from '../../src/services/socketService';
 import { CameraView, useCameraPermissions, useMicrophonePermissions } from 'expo-camera';
 
 import { EmergencyService } from '../../features/emergency/services/emergency.service';
@@ -41,6 +45,12 @@ export default function ActiveSosScreen() {
   const [countdown, setCountdown] = useState(10);
   const [sosFired, setSosFired] = useState(false);
   const [note, setNote] = useState('');
+  const [guardiansNotified, setGuardiansNotified] = useState(false);
+
+  // Upload State
+  const [uploadState, setUploadState] = useState<'idle' | 'uploading' | 'uploaded' | 'failed'>('idle');
+  const [uploadProgress, setUploadProgress] = useState(0);
+  const [videoUriToUpload, setVideoUriToUpload] = useState<string | null>(null);
 
   // Camera & Video Capture State
   const cameraRef = useRef<any>(null);
@@ -103,37 +113,58 @@ export default function ActiveSosScreen() {
 
   // Create Incident and Location Tracker
   useEffect(() => {
+    let isMounted = true;
+    let initialLoc: any = null;
+    let handleLocationUpdate: any = null;
+
     if (sosFired && userId && !incidentId) {
       const initIncident = async () => {
-        // 1. Create Incident
-        const newIncidentId = await sosIncidentService.createIncident(userId);
-        if (newIncidentId) setIncidentId(newIncidentId);
-
-        // 2. Start location tracking (Foreground)
-        const { status } = await Location.requestForegroundPermissionsAsync();
-        if (status === 'granted') {
-          locationSubRef.current = await Location.watchPositionAsync(
-            { accuracy: Location.Accuracy.High, timeInterval: 5000, distanceInterval: 10 },
-            (loc) => {
-              if (newIncidentId) sosIncidentService.updateLocation(newIncidentId, loc);
-            }
-          );
-        }
-        
-        // 3. Fallback SMS & Telegram
+        // 1. OFFLINE FIRST: Fire SMS & Telegram IMMEDIATELY before any database await
         if (prefs?.smsEnabled !== false) {
           sendAutomatedSMS([]).catch(e => console.log(e));
           sendAutomatedTelegram([]).catch(e => console.log(e));
         }
 
-        // 4. Send Background Push Notifications to Guardians!
-        pushNotificationService.sendEmergencyPushToGuardians(userId, user?.fullName || 'User');
+        // 2. Create Incident Document in Firebase
+        const newIncidentId = await sosIncidentService.createIncident(userId);
+        
+        if (newIncidentId) setIncidentId(newIncidentId);
+
+        // 3. Start location tracking via Singleton
+        handleLocationUpdate = (loc: any) => {
+          if (!isMounted) return;
+          if (!initialLoc) initialLoc = loc; // capture first loc for immediate dispatch if ready
+          if (newIncidentId) sosIncidentService.updateLocation(newIncidentId, loc);
+        };
+        
+        locationService.subscribe(handleLocationUpdate);
+
+        // 4. Delayed Real-Time Dispatch (3 Seconds)
+        setTimeout(async () => {
+          const batteryLevel = await Battery.getBatteryLevelAsync();
+          const guardianIds = trustedContacts.map((c: any) => c.userId).filter((id: string) => id);
+          
+          socketService.triggerEmergency(
+            userId, 
+            user?.fullName || 'User', 
+            guardianIds, 
+            initialLoc ? { lat: initialLoc.coords.latitude, lng: initialLoc.coords.longitude } : null,
+            batteryLevel
+          );
+          const success = await pushNotificationService.sendEmergencyPushToGuardians(userId, user?.fullName || 'User');
+          if (isMounted) {
+            setGuardiansNotified(success);
+          }
+        }, 3000);
       };
       initIncident();
     }
     
     return () => {
-      if (locationSubRef.current) locationSubRef.current.remove();
+      isMounted = false;
+      if (handleLocationUpdate) {
+        locationService.unsubscribe(handleLocationUpdate);
+      }
     };
   }, [sosFired, userId]);
 
@@ -143,7 +174,7 @@ export default function ActiveSosScreen() {
       const loc = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
       locationLink = `https://maps.google.com/?q=${loc.coords.latitude},${loc.coords.longitude}`;
     } catch (e) {
-      console.log('Could not get live location for SOS message', e);
+      // console.log('Could not get live location for SOS message', e);
     }
 
     const urlText = urls.length > 0 ? `\n\n📹 Live Evidence:\n${urls.map((url, i) => `Video ${i + 1}: ${url}`).join('\n')}` : '';
@@ -174,20 +205,58 @@ export default function ActiveSosScreen() {
       if (canOpen) {
         await Linking.openURL(telegramUrl);
       } else {
-        console.log('Telegram is not installed or cannot open URL.');
+        // console.log('Telegram is not installed or cannot open URL.');
       }
     } catch (error) {
-      console.log('Telegram automated send failed', error);
+      // console.log('Telegram automated send failed', error);
+    }
+  };
+
+  const performUpload = async (uri: string) => {
+    setUploadState('uploading');
+    setUploadProgress(0);
+    setVideoUriToUpload(uri);
+    
+    try {
+      const storage = new FirebaseStorageService();
+      if (incidentId) await sosIncidentService.updateEvidenceStatus(incidentId, 'uploading');
+      
+      const url = await storage.uploadEvidence(
+        incidentId || 'manual_sos_' + Date.now(), 
+        `evidence_${Date.now()}.mp4`, 
+        uri, 
+        'video',
+        (prog) => setUploadProgress(prog)
+      );
+      
+      setVideoUrls([url]);
+      if (incidentId) await sosIncidentService.updateEvidenceStatus(incidentId, 'uploaded', url);
+      
+      // Resend alerts with evidence URL
+      await sendAutomatedSMS([url]);
+      await sendAutomatedTelegram([url]);
+
+      // Broadcast Video Evidence via Socket
+      const guardianIds = trustedContacts.map((c: any) => c.userId).filter((id: string) => id);
+      if (userId) {
+        socketService.triggerEmergency(userId, user?.fullName || 'User', guardianIds, undefined, undefined, url);
+      }
+      
+      setUploadState('uploaded');
+      
+      // Cleanup temp file securely
+      await FileSystem.deleteAsync(uri, { idempotent: true });
+    } catch (err) {
+      if (incidentId) await sosIncidentService.updateEvidenceStatus(incidentId, 'failed');
+      setUploadState('failed');
     }
   };
 
   const startEvidenceCapture = async () => {
     setIsRecordingVideo(true);
     try {
-      const storage = new FirebaseStorageService();
-      
-      // SAFE FALLBACK MODE B: Record only rear camera for 15s to ensure stability during emergency
-      setCameraFacing('back');
+      // PREFERENCE: Use front camera as preferred by audit
+      setCameraFacing('front');
       await new Promise(r => setTimeout(r, 500)); 
       
       if (cameraRef.current) {
@@ -195,18 +264,10 @@ export default function ActiveSosScreen() {
         
         const video = await cameraRef.current.recordAsync({ maxDuration: 15 });
         if (video) {
-          if (incidentId) await sosIncidentService.updateEvidenceStatus(incidentId, 'uploading');
-          const url = await storage.uploadEvidence(incidentId || 'manual_sos_' + Date.now(), `evidence_${Date.now()}.mp4`, video.uri, 'video');
-          setVideoUrls([url]);
-          if (incidentId) await sosIncidentService.updateEvidenceStatus(incidentId, 'uploaded', url);
-          
-          // Resend alerts with evidence URL
-          await sendAutomatedSMS([url]);
-          await sendAutomatedTelegram([url]);
+          await performUpload(video.uri);
         }
       }
     } catch (err) {
-      console.log('Video capture failed:', err);
       if (incidentId) await sosIncidentService.updateEvidenceStatus(incidentId, 'failed');
     } finally {
       setIsRecordingVideo(false);
@@ -246,7 +307,7 @@ export default function ActiveSosScreen() {
         timeline: [],
       });
     } catch (e) {
-      console.log('Error triggering manual SOS:', e);
+      // console.log('Error triggering manual SOS:', e);
     }
   };
 
@@ -300,6 +361,12 @@ export default function ActiveSosScreen() {
             if (incidentId) await sosIncidentService.endIncident(incidentId);
             if (locationSubRef.current) locationSubRef.current.remove();
             
+            // Cancel via Socket
+            if (userId) {
+              const guardianIds = trustedContacts.map((c: any) => c.userId).filter((id: string) => id);
+              socketService.cancelEmergency(userId, user?.fullName || 'User', guardianIds);
+            }
+
             import('react-native').then(({ DeviceEventEmitter }) => {
               DeviceEventEmitter.emit('stop_sos');
             });
@@ -370,6 +437,32 @@ export default function ActiveSosScreen() {
               ))}
             </View>
             <Text style={styles.waveformLabel}>Streaming Ambient Audio & Video...</Text>
+
+            {uploadState === 'uploading' && (
+              <View style={{ marginTop: 15, width: '80%', alignSelf: 'center' }}>
+                <Text style={{ color: '#FCD34D', textAlign: 'center', marginBottom: 5, fontSize: 12, fontWeight: '600' }}>
+                  Uploading Evidence: {Math.round(uploadProgress)}%
+                </Text>
+                <View style={{ height: 4, backgroundColor: '#374151', borderRadius: 2, overflow: 'hidden' }}>
+                  <View style={{ height: '100%', width: `${uploadProgress}%`, backgroundColor: '#FCD34D' }} />
+                </View>
+              </View>
+            )}
+            
+            {uploadState === 'failed' && videoUriToUpload && (
+              <TouchableOpacity 
+                style={{ marginTop: 15, backgroundColor: '#DC2626', paddingVertical: 8, paddingHorizontal: 16, borderRadius: 20, alignSelf: 'center' }}
+                onPress={() => performUpload(videoUriToUpload)}
+              >
+                <Text style={{ color: '#FFFFFF', fontWeight: 'bold', fontSize: 13 }}>Upload Failed - Tap to Retry</Text>
+              </TouchableOpacity>
+            )}
+            
+            {uploadState === 'uploaded' && (
+              <View style={{ marginTop: 15, backgroundColor: 'rgba(5, 150, 105, 0.2)', paddingVertical: 8, paddingHorizontal: 16, borderRadius: 20, alignSelf: 'center', borderColor: '#059669', borderWidth: 1 }}>
+                <Text style={{ color: '#34D399', fontWeight: 'bold', fontSize: 13 }}>Evidence Secured ✓</Text>
+              </View>
+            )}
           </View>
         )}
 
@@ -389,7 +482,9 @@ export default function ActiveSosScreen() {
                     </View>
                     <View style={{ flex: 1 }}>
                       <Text style={styles.guardianName} numberOfLines={1}>{contact.name || contact.phone}</Text>
-                      <Text style={[styles.guardianStatus, { color: '#059669' }]}>• Notified</Text>
+                      <Text style={[styles.guardianStatus, { color: guardiansNotified ? '#059669' : '#D97706' }]}>
+                        {guardiansNotified ? '• Notified' : '• Sending...'}
+                      </Text>
                     </View>
                   </View>
                 );

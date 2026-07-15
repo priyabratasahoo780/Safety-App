@@ -12,7 +12,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { useRouter, useFocusEffect } from 'expo-router';
 import { Feather } from '@expo/vector-icons';
-import MapView, { Marker, Circle, UrlTile } from 'react-native-maps';
+import MapView, { Marker, Circle, UrlTile } from '../../../components/MapViewProxy';
 import { collection, query, orderBy, getDocs, doc, updateDoc, arrayUnion, arrayRemove } from 'firebase/firestore';
 import { useAuth } from '@clerk/clerk-expo';
 import { db } from '../../../src/config/firebaseConfig';

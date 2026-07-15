@@ -54,7 +54,10 @@
           "recordAudioAndroid": true
         }
       ],
-      "llama.rn"
+      "llama.rn",
+      "expo-audio",
+      "expo-video",
+      "expo-asset"
     ],
     "experiments": {
       "typedRoutes": true,

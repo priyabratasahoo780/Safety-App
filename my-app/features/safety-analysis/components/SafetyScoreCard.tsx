@@ -29,7 +29,9 @@ export const SafetyScoreCard: React.FC<SafetyScoreCardProps> = ({ data }) => {
           </View>
           
           <Text style={styles.description}>
-            Keep it up! You're following good safety practices.
+            {data.isDemoData 
+              ? 'Demo safety insights' 
+              : 'Keep it up! You\'re following good safety practices.'}
           </Text>
         </View>
 

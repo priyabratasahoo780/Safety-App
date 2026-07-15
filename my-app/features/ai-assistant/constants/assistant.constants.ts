@@ -22,37 +22,4 @@ Do not provide fake CCTV, crime, crowd or emergency information.
 Keep answers concise and mobile-friendly.
 Use short paragraphs, bullets or numbered steps when useful.`;
 
-export const INITIAL_DEMO_CONVERSATION: ChatMessage[] = [
-  {
-    id: 'demo-1',
-    role: 'user',
-    content: 'Is it safe to travel alone at night?',
-    timestamp: Date.now() - 120000,
-    status: 'sent',
-    isDemo: true,
-  },
-  {
-    id: 'demo-2',
-    role: 'assistant',
-    content: 'Traveling alone at night can be safer if you take proper precautions. Here are some tips to keep in mind:\n\n• Share your live location with trusted contacts.\n\n• Use well-lit and busy routes.\n\n• Avoid isolated areas and empty streets.\n\n• Keep emergency contacts handy.\n\n• Trust your instincts. If something feels unsafe, move to a safer public place.\n\nStay alert and stay safe.',
-    timestamp: Date.now() - 110000,
-    status: 'sent',
-    isDemo: true,
-  },
-  {
-    id: 'demo-3',
-    role: 'user',
-    content: 'What should I do in an emergency situation?',
-    timestamp: Date.now() - 60000,
-    status: 'sent',
-    isDemo: true,
-  },
-  {
-    id: 'demo-4',
-    role: 'assistant',
-    content: 'In an emergency:\n\n1. Use the SOS feature if it is safe to do so.\n\n2. Share your live location with a trusted contact.\n\n3. Contact local emergency services when immediate help is required.\n\n4. Move to a safer, populated location if possible.\n\n5. Clearly explain your location and situation.\n\nI’m here to provide general guidance.',
-    timestamp: Date.now() - 50000,
-    status: 'sent',
-    isDemo: true,
-  }
-];
+export const INITIAL_DEMO_CONVERSATION: ChatMessage[] = [];

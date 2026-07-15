@@ -35,6 +35,8 @@ export default function GatheringInfoScreen() {
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [pendingVerification, setPendingVerification] = useState(false);
+  const [code, setCode] = useState('');
 
   const handleDobChange = (text: string) => {
     // Simple mask for MM/DD/YYYY
@@ -76,7 +78,7 @@ export default function GatheringInfoScreen() {
         lastName: fullName.split(' ').slice(1).join(' ')
       });
 
-      if (result.status === 'complete' || result.status === 'missing_requirements') {
+      if (result.status === 'complete') {
         // 2. Set active session in Clerk
         if (result.createdSessionId) {
           await setActive({ session: result.createdSessionId });
@@ -86,11 +88,39 @@ export default function GatheringInfoScreen() {
           await authService.createUserProfile(result.createdUserId, email, fullName, finalPassword);
         }
         router.push('/(auth)/safety-info');
+      } else if (result.status === 'missing_requirements') {
+        // Prepare email verification
+        await signUp.prepareEmailAddressVerification({ strategy: 'email_code' });
+        setPendingVerification(true);
       } else {
         Alert.alert("Sign up Error", "Unable to complete sign up at this time.");
       }
     } catch (error: any) {
       Alert.alert("Sign up Error", error.errors?.[0]?.message || error.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const onVerifyPress = async () => {
+    if (!isLoaded) return;
+    setLoading(true);
+    try {
+      const completeSignUp = await signUp.attemptEmailAddressVerification({
+        code,
+      });
+      if (completeSignUp.status === 'complete') {
+        await setActive({ session: completeSignUp.createdSessionId });
+        if (completeSignUp.createdUserId) {
+          const finalPassword = password || (params.password as string) || '';
+          await authService.createUserProfile(completeSignUp.createdUserId, email, fullName, finalPassword);
+        }
+        router.push('/(auth)/safety-info');
+      } else {
+        Alert.alert("Error", "Invalid verification code.");
+      }
+    } catch (err: any) {
+      Alert.alert("Verification Error", err.errors?.[0]?.message || err.message);
     } finally {
       setLoading(false);
     }
@@ -176,8 +206,10 @@ export default function GatheringInfoScreen() {
             </View>
           </View>
 
-          {/* Form Fields */}
-          <View style={styles.formContainer}>
+          {!pendingVerification ? (
+            <>
+              {/* Form Fields */}
+              <View style={styles.formContainer}>
             
             {/* Full Name */}
             <View style={styles.inputGroup}>
@@ -273,11 +305,55 @@ export default function GatheringInfoScreen() {
             
           </View>
 
-          {/* Next Button */}
-          <TouchableOpacity style={styles.nextButton} onPress={handleNext}>
-            <Text style={styles.nextButtonText}>Next</Text>
-            <Feather name="chevron-right" size={20} color="#FFFFFF" style={styles.buttonArrow} />
-          </TouchableOpacity>
+              {/* Next Button */}
+              <TouchableOpacity style={styles.nextButton} onPress={handleNext}>
+                {loading ? (
+                  <ActivityIndicator color="#fff" />
+                ) : (
+                  <>
+                    <Text style={styles.nextButtonText}>Next</Text>
+                    <Feather name="chevron-right" size={20} color="#FFFFFF" style={styles.buttonArrow} />
+                  </>
+                )}
+              </TouchableOpacity>
+            </>
+          ) : (
+            <>
+              {/* OTP Verification Form */}
+              <View style={styles.formContainer}>
+                <View style={styles.inputGroup}>
+                  <Text style={styles.inputLabel}>Verification Code</Text>
+                  <Text style={{ color: '#6B7280', fontSize: 13, marginBottom: 8 }}>
+                    Enter the 6-digit code sent to {email}
+                  </Text>
+                  <View style={styles.inputWrapper}>
+                    <Feather name="key" size={18} color="#F34E62" style={styles.inputIconLeft} />
+                    <TextInput
+                      style={[styles.textInput, { fontSize: 24, letterSpacing: 8, textAlign: 'center' }]}
+                      placeholder="000000"
+                      placeholderTextColor="#9CA3AF"
+                      keyboardType="numeric"
+                      maxLength={6}
+                      value={code}
+                      onChangeText={setCode}
+                    />
+                  </View>
+                </View>
+              </View>
+              
+              {/* Verify Button */}
+              <TouchableOpacity style={styles.nextButton} onPress={onVerifyPress}>
+                {loading ? (
+                  <ActivityIndicator color="#fff" />
+                ) : (
+                  <>
+                    <Text style={styles.nextButtonText}>Verify Email</Text>
+                    <Feather name="check" size={20} color="#FFFFFF" style={styles.buttonArrow} />
+                  </>
+                )}
+              </TouchableOpacity>
+            </>
+          )}
 
           {/* Divider */}
           <View style={styles.dividerContainer}>

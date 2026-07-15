@@ -6,7 +6,7 @@ import { Phone, PhoneOff, UserRound, Settings } from 'lucide-react-native';
 import { useRouter } from 'expo-router';
 import * as Haptics from 'expo-haptics';
 import * as Speech from 'expo-speech';
-import { Audio } from 'expo-av';
+import { AudioModule } from 'expo-audio';
 import * as FileSystem from 'expo-file-system';
 import { AIFakeCallService } from '../../features/emergency/services/aiFakeCallService';
 
@@ -17,16 +17,27 @@ export default function FakeCallScreen() {
   const [callState, setCallState] = useState<'ringing' | 'connecting' | 'speaking' | 'listening' | 'thinking'>('ringing');
   const [callDuration, setCallDuration] = useState(0);
   
-  const recordingRef = useRef<Audio.Recording | null>(null);
+  const recordingRef = useRef<any | null>(null);
   const isComponentMounted = useRef(true);
-  const timerRef = useRef<NodeJS.Timeout | null>(null);
+  const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   // Ringing animation
   const pulseAnim = useRef(new Animated.Value(1)).current;
 
+  // Request Mic Permission Immediately on Mount
+  useEffect(() => {
+    (async () => {
+      try {
+        await AudioModule.requestRecordingPermissionsAsync();
+      } catch (error) {
+        console.warn('Failed to request mic permission:', error);
+      }
+    })();
+  }, []);
+
   // Setup Ringing Vibration and Animation
   useEffect(() => {
-    let vibrateInterval: NodeJS.Timeout;
+    let vibrateInterval: ReturnType<typeof setInterval>;
     
     if (callState === 'ringing') {
       vibrateInterval = setInterval(() => {
@@ -56,7 +67,7 @@ export default function FakeCallScreen() {
       if (timerRef.current) clearInterval(timerRef.current);
       Speech.stop();
       if (recordingRef.current) {
-        recordingRef.current.stopAndUnloadAsync().catch(() => {});
+        recordingRef.current.stop?.().catch(() => {});
       }
     };
   }, []);
@@ -72,6 +83,11 @@ export default function FakeCallScreen() {
 
     // Initialize AI Conversation
     AIFakeCallService.getInstance().resetHistory();
+    try {
+      await AIFakeCallService.getInstance().initialize();
+    } catch (e) {
+      console.warn("Failed to initialize offline models", e);
+    }
     
     // Simulate connection delay
     await new Promise(r => setTimeout(r, 800));
@@ -84,9 +100,12 @@ export default function FakeCallScreen() {
     isComponentMounted.current = false;
     Speech.stop();
     if (recordingRef.current) {
-      recordingRef.current.stopAndUnloadAsync().catch(() => {});
+      recordingRef.current.stop?.().catch(() => {});
     }
     if (timerRef.current) clearInterval(timerRef.current);
+    
+    // Free up heavy native AI models from memory
+    AIFakeCallService.getInstance().destroy();
     
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     router.back();
@@ -117,31 +136,27 @@ export default function FakeCallScreen() {
     setCallState('listening');
 
     try {
-      const permission = await Audio.requestPermissionsAsync();
+      const permission = await AudioModule.requestRecordingPermissionsAsync();
       if (permission.status !== 'granted') throw new Error('No mic permission');
 
-      await Audio.setAudioModeAsync({
-        allowsRecordingIOS: true,
-        playsInSilentModeIOS: true,
+      await AudioModule.setAudioModeAsync({
+        allowsRecording: true,
+        playsInSilentMode: true,
       });
 
-      const recording = new Audio.Recording();
-      await recording.prepareToRecordAsync({
+      const recording = new AudioModule.AudioRecorder({
         isMeteringEnabled: true,
         android: {
           extension: '.m4a',
-          outputFormat: 2,
-          audioEncoder: 3,
+          outputFormat: 'default',
+          audioEncoder: 'default',
           sampleRate: 16000,
-          numberOfChannels: 1,
-          bitRate: 64000,
         },
         ios: {
           extension: '.m4a',
-          audioQuality: 0x7F,
+          audioQuality: 127,
           sampleRate: 16000,
-          numberOfChannels: 1,
-          bitRate: 64000,
+          bitRateStrategy: 0,
           linearPCMBitDepth: 16,
           linearPCMIsBigEndian: false,
           linearPCMIsFloat: false,
@@ -150,7 +165,8 @@ export default function FakeCallScreen() {
       });
 
       recordingRef.current = recording;
-      await recording.startAsync();
+      await recording.prepareToRecordAsync();
+      recording.record();
 
       // Listen for 6 seconds to give user time to reply
       setTimeout(async () => {
@@ -164,13 +180,13 @@ export default function FakeCallScreen() {
     }
   };
 
-  const stopListeningAndProcess = async (recording: Audio.Recording) => {
+  const stopListeningAndProcess = async (recording: any) => {
     try {
       setCallState('thinking');
-      await recording.stopAndUnloadAsync();
+      await recording.stop?.();
       recordingRef.current = null;
 
-      const uri = recording.getURI();
+      const uri = recording.uri;
       if (!uri) {
         speakAndThenListen("Mujhe samajh nahi aaya.");
         return;
@@ -178,7 +194,7 @@ export default function FakeCallScreen() {
 
       // Convert to base64 reliably using expo-file-system
       const base64Data = await FileSystem.readAsStringAsync(uri, {
-        encoding: FileSystem.EncodingType.Base64,
+        encoding: 'base64' as any,
       });
 
       // Get AI Response

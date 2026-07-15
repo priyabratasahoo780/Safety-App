@@ -206,7 +206,7 @@ export class SOSLogger {
           console.warn(prefix, message, sanitizedData ?? '');
           break;
         case LogLevel.EMERGENCY:
-          console.log(prefix, message, sanitizedData ?? '');
+          // console.log(prefix, message, sanitizedData ?? '');
           break;
       }
     }

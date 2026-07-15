@@ -5,12 +5,12 @@ export class MockEmergencyRepository implements IEmergencyRepository {
   private memoryDb: Map<string, EmergencyEvent> = new Map();
 
   async createEmergencySession(event: EmergencyEvent): Promise<void> {
-    console.log(`[MockEmergencyRepository] Creating Emergency Session: ${event.id}`);
+    // console.log(`[MockEmergencyRepository] Creating Emergency Session: ${event.id}`);
     this.memoryDb.set(event.id, event);
   }
 
   async updateEmergencySession(id: string, updates: Partial<EmergencyEvent>): Promise<void> {
-    console.log(`[MockEmergencyRepository] Updating Emergency Session: ${id}`, updates);
+    // console.log(`[MockEmergencyRepository] Updating Emergency Session: ${id}`, updates);
     const existing = this.memoryDb.get(id);
     if (existing) {
       this.memoryDb.set(id, { ...existing, ...updates });
@@ -18,7 +18,7 @@ export class MockEmergencyRepository implements IEmergencyRepository {
   }
 
   async resolveEmergencySession(id: string, reason: string): Promise<void> {
-    console.log(`[MockEmergencyRepository] Resolving Emergency Session: ${id} - Reason: ${reason}`);
+    // console.log(`[MockEmergencyRepository] Resolving Emergency Session: ${id} - Reason: ${reason}`);
     const existing = this.memoryDb.get(id);
     if (existing) {
       existing.status = EmergencyStatus.RESOLVED;

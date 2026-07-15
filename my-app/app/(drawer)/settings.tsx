@@ -64,7 +64,7 @@ export default function SettingsScreen() {
         safetyPreferences: newPrefs
       });
     } catch (e) {
-      console.log('Failed to save preference', e);
+      // console.log('Failed to save preference', e);
     }
   };
 

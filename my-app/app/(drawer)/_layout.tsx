@@ -2,12 +2,21 @@ import { Drawer } from 'expo-router/drawer';
 import { Feather } from '@expo/vector-icons';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { useEmergencyListener } from '../../features/emergency/hooks/useEmergencyListener';
+import { useShakeToSOS } from '../../features/emergency/hooks/useShakeToSOS';
+import { useVolumeSOS } from '../../features/emergency/hooks/useVolumeSOS';
 import { useEffect } from 'react';
 import { authService } from '../../src/services/authService';
+import { UserProfileProvider } from '../../src/context/UserProfileContext';
 
 export default function DrawerLayout() {
   // Global listener for Guardian incoming emergencies
   useEmergencyListener();
+  
+  // Global listener for Shake-to-SOS (accelerometer)
+  useShakeToSOS();
+
+  // Global listener for Volume SOS
+  useVolumeSOS();
 
   useEffect(() => {
     // Register device for push notifications when they enter the authenticated area
@@ -15,6 +24,7 @@ export default function DrawerLayout() {
   }, []);
 
   return (
+    <UserProfileProvider>
     <GestureHandlerRootView style={{ flex: 1 }}>
       <Drawer
         screenOptions={{
@@ -131,5 +141,6 @@ export default function DrawerLayout() {
         />
       </Drawer>
     </GestureHandlerRootView>
+    </UserProfileProvider>
   );
 }

@@ -38,8 +38,8 @@ export interface PermissionResult {
 
 export async function requestMicrophonePermission(): Promise<PermissionResult> {
   try {
-    if (!AudioModule) throw new Error('expo-av not installed');
-    const { status, canAskAgain } = await AudioModule.requestPermissionsAsync();
+    if (!AudioModule) throw new Error('expo-audio not installed');
+    const { status, canAskAgain } = await AudioModule.requestRecordingPermissionsAsync();
 
     return {
       permission: 'microphone',
@@ -206,7 +206,7 @@ let LocationModule: any = null;
 let SensorsModule: any = null;
 
 try {
-  AudioModule = require('expo-av').Audio;
+  AudioModule = require('expo-audio');
 } catch (e) {}
 
 try {

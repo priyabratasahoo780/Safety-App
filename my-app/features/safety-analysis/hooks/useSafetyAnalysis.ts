@@ -30,7 +30,7 @@ export const useSafetyAnalysis = () => {
       const promises: any[] = [];
 
       // 1. User Profile Promise
-      let userProfilePromise = Promise.resolve(null);
+      let userProfilePromise: Promise<any> = Promise.resolve(null);
       if (user) {
         const userRef = doc(db, 'users', user.id);
         userProfilePromise = getDoc(userRef);

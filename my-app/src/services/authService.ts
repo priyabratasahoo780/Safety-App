@@ -1,4 +1,4 @@
-import { doc, setDoc, getDoc, updateDoc } from "firebase/firestore";
+import { doc, setDoc, getDoc, updateDoc, collection, query, where, getDocs } from "firebase/firestore";
 import { db } from "../config/firebaseConfig";
 import * as Notifications from 'expo-notifications';
 import * as Device from 'expo-device';
@@ -19,13 +19,28 @@ export const authService = {
     return result;
   },
 
+  // Ensures uniqueness of the ID across all users
+  async generateUniqueSafeSphereId() {
+    let isUnique = false;
+    let newId = '';
+    while (!isUnique) {
+      newId = this.generateSafeSphereId();
+      const q = query(collection(db, 'users'), where('safeSphereId', '==', newId));
+      const querySnapshot = await getDocs(q);
+      if (querySnapshot.empty) {
+        isUnique = true;
+      }
+    }
+    return newId;
+  },
+
   // Create initial user profile in Firestore after Clerk signup
   async createUserProfile(userId: string, email: string, fullName: string, password?: string) {
     try {
       this.clerkUserId = userId;
       const userRef = doc(db, "users", userId);
       
-      const safeSphereId = this.generateSafeSphereId();
+      const safeSphereId = await this.generateUniqueSafeSphereId();
       const profileData = {
         uid: userId,
         safeSphereId,
@@ -89,7 +104,7 @@ export const authService = {
       const data = userDoc.data();
       // Lazily generate safeSphereId for existing users who don't have one
       if (!data.safeSphereId) {
-        const safeSphereId = this.generateSafeSphereId();
+        const safeSphereId = await this.generateUniqueSafeSphereId();
         await setDoc(doc(db, "users", id), { safeSphereId }, { merge: true });
         data.safeSphereId = safeSphereId;
       }
@@ -106,7 +121,7 @@ export const authService = {
     if (!id) return null;
 
     let token;
-    if (Device.isDevice) {
+    try {
       const { status: existingStatus } = await Notifications.getPermissionsAsync();
       let finalStatus = existingStatus;
       if (existingStatus !== 'granted') {
@@ -114,7 +129,7 @@ export const authService = {
         finalStatus = status;
       }
       if (finalStatus !== 'granted') {
-        console.log('Failed to get push token for push notification!');
+        // console.log('Failed to get push token for push notification!');
         return null;
       }
       const projectId =
@@ -127,18 +142,14 @@ export const authService = {
       }
       
       try {
-        if (Constants.appOwnership !== 'expo') {
-          token = (await Notifications.getExpoPushTokenAsync({
-            projectId,
-          })).data;
-        } else {
-          console.log('Skipping push token registration in Expo Go (removed in SDK 53). Use development build.');
-        }
+        token = (await Notifications.getExpoPushTokenAsync({
+          projectId,
+        })).data;
       } catch (e) {
         console.warn('Failed to get push token:', e);
       }
-    } else {
-      console.log('Must use physical device for Push Notifications');
+    } catch (e) {
+      console.warn('Push Notifications setup failed:', e);
     }
 
     if (Platform.OS === 'android') {

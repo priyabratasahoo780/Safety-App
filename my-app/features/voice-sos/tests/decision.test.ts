@@ -54,6 +54,7 @@ describe('DecisionEngine', () => {
       detectedKeyword: 'stop',
     });
 
+    console.log('TEST RESULT OBJECT:', result);
     expect(result.shouldTrigger).toBe(false);
     expect(result.status).toBe(EmergencyStatus.HIGH_ALERT);
   });

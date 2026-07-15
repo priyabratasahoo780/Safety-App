@@ -86,11 +86,11 @@ export default function OtpVerifyScreen() {
           <Feather name="arrow-left" size={24} color="#1F2937" />
         </TouchableOpacity>
         
-        <TouchableOpacity style={styles.languageButton} onPress={() => Alert.alert('Language', 'Language selection coming soon.')}>
+        <View style={styles.languageButton}>
           <Feather name="globe" size={16} color="#4B5563" style={styles.globeIcon} />
           <Text style={styles.languageText}>English</Text>
           <Feather name="chevron-down" size={14} color="#4B5563" />
-        </TouchableOpacity>
+        </View>
       </View>
 
       <KeyboardAvoidingView

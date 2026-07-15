@@ -19,6 +19,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useWindowDimensions } from 'react-native';
 import { useUser } from '@clerk/clerk-expo';
 import { authService } from '../../src/services/authService';
+import { locationService } from '../../src/services/locationService';
 
 function getDistance(lat1: number, lon1: number, lat2: number, lon2: number) {
   const R = 6371; // km
@@ -67,49 +68,37 @@ export default function LiveTrackingScreen() {
   }, [user?.id]);
 
   useEffect(() => {
-    let locationSubscription: Location.LocationSubscription | null = null;
+    let isMounted = true;
 
-    (async () => {
-      let { status } = await Location.requestForegroundPermissionsAsync();
-      if (status !== 'granted') {
-        setErrorMsg('Permission to access location was denied');
-        return;
-      }
+    const handleLocationUpdate = (loc: Location.LocationObject) => {
+      if (!isMounted) return;
 
-      locationSubscription = await Location.watchPositionAsync(
-        {
-          accuracy: Location.Accuracy.BestForNavigation,
-          timeInterval: 5000,
-          distanceInterval: 5,
-        },
-        (loc) => {
-          if (lastLocationRef.current) {
-            const dist = getDistance(
-              lastLocationRef.current.coords.latitude,
-              lastLocationRef.current.coords.longitude,
-              loc.coords.latitude,
-              loc.coords.longitude
-            );
-            
-            // Only accumulate distance if moved more than 5 meters (0.005 km)
-            // This prevents stationary GPS jitter from artificially inflating the distance traveled
-            if (dist > 0.005) {
-              setDistance(prev => prev + dist);
-              lastLocationRef.current = loc;
-            }
-          } else {
-            // First time getting location
-            lastLocationRef.current = loc;
-          }
-          setLocation(loc);
+      if (lastLocationRef.current) {
+        const dist = getDistance(
+          lastLocationRef.current.coords.latitude,
+          lastLocationRef.current.coords.longitude,
+          loc.coords.latitude,
+          loc.coords.longitude
+        );
+        
+        // Only accumulate distance if moved more than 5 meters (0.005 km)
+        // This prevents stationary GPS jitter from artificially inflating the distance traveled
+        if (dist > 0.005) {
+          setDistance(prev => prev + dist);
+          lastLocationRef.current = loc;
         }
-      );
-    })();
+      } else {
+        // First time getting location
+        lastLocationRef.current = loc;
+      }
+      setLocation(loc);
+    };
+
+    locationService.subscribe(handleLocationUpdate);
 
     return () => {
-      if (locationSubscription) {
-        locationSubscription.remove();
-      }
+      isMounted = false;
+      locationService.unsubscribe(handleLocationUpdate);
     };
   }, []);
 

@@ -7,7 +7,7 @@ export class MockGuardianRepository implements IGuardianRepository {
   ];
 
   async getRegisteredGuardians(userId: string): Promise<Guardian[]> {
-    console.log(`[MockGuardianRepository] Fetching guardians for user: ${userId}`);
+    // console.log(`[MockGuardianRepository] Fetching guardians for user: ${userId}`);
     return this.memoryDb.filter(g => g.userId === userId || userId === 'default');
   }
 
