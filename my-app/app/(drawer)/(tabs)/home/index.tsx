@@ -12,6 +12,7 @@ import {
   DeviceEventEmitter,
   Linking,
   TouchableOpacity,
+  Vibration,
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
@@ -414,6 +415,12 @@ export default function HomeScreen() {
   }, []);
 
   const handleSOSActivate = () => {
+    // Vibrate for ~2.5 seconds on both iOS and Android
+    // Pattern: [delay, duration, delay, duration, ...]
+    // iOS ignores duration and vibrates for 400ms, so we repeat it.
+    const VIBRATION_PATTERN = [0, 500, 100, 500, 100, 500, 100, 500, 100, 500];
+    Vibration.vibrate(VIBRATION_PATTERN);
+    
     setSosActive(true);
     router.push('/sos/active');
   };
