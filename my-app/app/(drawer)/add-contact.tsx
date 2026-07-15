@@ -65,7 +65,8 @@ export default function AddContactScreen() {
 
   return (
     <SafeAreaView style={styles.container}>
-      <View style={styles.header}>
+      <View style={[styles.header, { flexDirection: 'row', alignItems: 'center' }]}>
+        <TouchableOpacity onPress={() => router.back()} style={{ padding: 8, marginRight: 12 }}><Feather name="arrow-left" size={24} color="#111827" /></TouchableOpacity>
         <TouchableOpacity onPress={() => router.back()} style={{ padding: 8 }}>
           <Feather name="arrow-left" size={24} color="#1F2937" />
         </TouchableOpacity>

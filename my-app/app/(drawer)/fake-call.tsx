@@ -1,5 +1,6 @@
 import React, { useEffect, useState, useRef } from 'react';
-import { View, Text, StyleSheet, Pressable, useWindowDimensions, Animated } from 'react-native';
+import { Feather } from '@expo/vector-icons';
+import { TouchableOpacity, View, Text, StyleSheet, Pressable, useWindowDimensions, Animated } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { Phone, PhoneOff, UserRound, Settings } from 'lucide-react-native';
@@ -7,7 +8,7 @@ import { useRouter } from 'expo-router';
 import * as Haptics from 'expo-haptics';
 import * as Speech from 'expo-speech';
 import { AudioModule } from 'expo-audio';
-import * as FileSystem from 'expo-file-system';
+import * as FileSystem from 'expo-file-system/legacy';
 import { AIFakeCallService } from '../../features/emergency/services/aiFakeCallService';
 
 export default function FakeCallScreen() {
@@ -232,7 +233,8 @@ export default function FakeCallScreen() {
     <SafeAreaView style={styles.container}>
       <StatusBar style="light" />
       
-      <View style={styles.header}>
+      <View style={[styles.header, { flexDirection: 'row', alignItems: 'center' }]}>
+        <TouchableOpacity onPress={() => router.back()} style={{ padding: 8, marginRight: 12 }}><Feather name="arrow-left" size={24} color="#111827" /></TouchableOpacity>
         <View style={styles.headerLeft} />
         <Text style={styles.callerStatus}>
           {callState === 'ringing' ? 'Mobile' : formatTime(callDuration)}
