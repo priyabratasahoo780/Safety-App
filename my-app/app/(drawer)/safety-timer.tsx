@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, Pressable, useWindowDimensions, Alert } from 'react-native';
+import { Feather } from '@expo/vector-icons';
+import { TouchableOpacity, View, Text, StyleSheet, Pressable, useWindowDimensions, Alert } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { Timer as TimerIcon, X, Play, Square, ShieldAlert } from 'lucide-react-native';
@@ -78,7 +79,8 @@ export default function SafetyTimerScreen() {
       <StatusBar style="dark" />
       
       {/* Header */}
-      <View style={styles.header}>
+      <View style={[styles.header, { flexDirection: 'row', alignItems: 'center' }]}>
+        <TouchableOpacity onPress={() => router.back()} style={{ padding: 8, marginRight: 12 }}><Feather name="arrow-left" size={24} color="#FFFFFF" /></TouchableOpacity>
         <Pressable 
           style={styles.backButton} 
           onPress={() => router.back()}

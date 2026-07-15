@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, ScrollView, Pressable, DeviceEventEmitter } from 'react-native';
+import { Feather } from '@expo/vector-icons';
+import { TouchableOpacity, View, Text, StyleSheet, ScrollView, Pressable, DeviceEventEmitter } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { Bell, ArrowLeft, CheckCircle2, ShieldAlert, UserPlus, Info } from 'lucide-react-native';
@@ -102,7 +103,8 @@ export default function NotificationsScreen() {
       <StatusBar style="dark" />
       
       {/* Header */}
-      <View style={styles.header}>
+      <View style={[styles.header, { flexDirection: 'row', alignItems: 'center' }]}>
+        <TouchableOpacity onPress={() => router.back()} style={{ padding: 8, marginRight: 12 }}><Feather name="arrow-left" size={24} color="#111827" /></TouchableOpacity>
         <Pressable onPress={() => router.back()} style={styles.backBtn}>
           <ArrowLeft size={24} color={COLORS.textPrimary} />
         </Pressable>
