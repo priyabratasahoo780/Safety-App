@@ -42,20 +42,40 @@ export const useSafetyAnalysis = () => {
 
       // 3. Location Promise
       let locationPromise = (async () => {
-        let { status } = await Location.requestForegroundPermissionsAsync();
-        if (status === 'granted') {
-          // Use last known position for instant load, fallback to balanced accuracy if null
-          let loc = await Location.getLastKnownPositionAsync({});
-          if (!loc) {
-            loc = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
+        let loc: any = null;
+        let geocode: any = null;
+        
+        try {
+          let { status } = await Location.requestForegroundPermissionsAsync();
+          if (status === 'granted') {
+            loc = await Location.getLastKnownPositionAsync({});
+            if (!loc) {
+              loc = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
+            }
+            if (loc) {
+              const geo = await Location.reverseGeocodeAsync({
+                latitude: loc.coords.latitude,
+                longitude: loc.coords.longitude
+              });
+              if (geo && geo.length > 0) geocode = geo;
+            }
           }
-          if (loc) {
-            const geocode = await Location.reverseGeocodeAsync({
-              latitude: loc.coords.latitude,
-              longitude: loc.coords.longitude
-            });
-            return { loc, geocode };
+        } catch (e) {
+          // Native failed, fallback to IP Geolocation
+          try {
+            const res = await fetch('http://ip-api.com/json/');
+            const data = await res.json();
+            if (data && data.status === 'success') {
+              loc = { coords: { latitude: data.lat, longitude: data.lon } };
+              geocode = [{ region: data.regionName, city: data.city }];
+            }
+          } catch (err) {
+            // keep null
           }
+        }
+        
+        if (loc) {
+          return { loc, geocode };
         }
         return null;
       })();
@@ -102,8 +122,22 @@ export const useSafetyAnalysis = () => {
         let suspiciousCount = 0;
         let lightingCount = 0;
 
+        let userLat = locationData.loc.coords.latitude;
+        let userLon = locationData.loc.coords.longitude;
+        
         snapshot.forEach((docSnap) => {
           const rData = docSnap.data();
+          
+          if (rData.latitude && rData.longitude) {
+            // Calculate Distance (Haversine)
+            const R = 6371;
+            const dLat = (rData.latitude - userLat) * Math.PI / 180;
+            const dLon = (rData.longitude - userLon) * Math.PI / 180;
+            const a = Math.sin(dLat/2) * Math.sin(dLat/2) + Math.cos(userLat * Math.PI / 180) * Math.cos(rData.latitude * Math.PI / 180) * Math.sin(dLon/2) * Math.sin(dLon/2);
+            const dist = R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+            if (dist > 50) return; // Only count incidents within 50km
+          }
+
           if (rData.category === 'Harassment') harassmentCount++;
           else if (rData.category === 'Theft' || rData.category === 'Assault') theftCount++;
           else if (rData.category === 'Suspicious Activity') suspiciousCount++;

@@ -43,9 +43,33 @@ class LocationService {
       this.isTracking = true;
       
       // Get initial position quickly
-      const initialPos = await Location.getCurrentPositionAsync({
+      let initialPos = await Location.getCurrentPositionAsync({
         accuracy: Location.Accuracy.Balanced,
       }).catch(() => null);
+
+      // If native location fails (e.g. on Web without HTTPS or permission denied), fallback to IP-based location
+      if (!initialPos) {
+        try {
+          const res = await fetch('http://ip-api.com/json/');
+          const data = await res.json();
+          if (data && data.status === 'success') {
+            initialPos = {
+              coords: {
+                latitude: data.lat,
+                longitude: data.lon,
+                altitude: null,
+                accuracy: 1000,
+                altitudeAccuracy: null,
+                heading: null,
+                speed: null
+              },
+              timestamp: Date.now()
+            };
+          }
+        } catch (e) {
+          console.warn('IP Geolocation fallback failed', e);
+        }
+      }
 
       if (initialPos) {
         this.lastLocation = initialPos;
