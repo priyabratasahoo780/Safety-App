@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, ScrollView, Switch, Pressable, Alert } from 'react-native';
+import { TouchableOpacity, View, Text, StyleSheet, ScrollView, Switch, Pressable, Alert } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { DrawerToggleButton } from '@react-navigation/drawer';
 import { Feather } from '@expo/vector-icons';
@@ -107,7 +107,7 @@ export default function SettingsScreen() {
   return (
     <View style={[styles.container, { paddingTop: insets.top }]}>
       <View style={styles.header}>
-        <DrawerToggleButton tintColor={COLORS.textPrimary} />
+        <TouchableOpacity onPress={() => router.back()} style={{ padding: 8, marginLeft: -8 }}><Feather name="arrow-left" size={24} color="#111827" /></TouchableOpacity>
         <Text style={styles.headerTitle}>Safety Settings</Text>
         <View style={{ width: 40 }} />
       </View>

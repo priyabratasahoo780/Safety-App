@@ -230,7 +230,7 @@ export default function ProfileScreen() {
         <View style={styles.profileHeader}>
           <View style={styles.profileAvatar}>
             <Text style={styles.avatarText}>
-              {userProfile?.fullName ? userProfile.fullName.charAt(0).toUpperCase() : 'U'}
+              {userProfile?.fullName ? userProfile.fullName.charAt(0).toUpperCase() : (user?.fullName ? user.fullName.charAt(0).toUpperCase() : (user?.firstName ? user.firstName.charAt(0).toUpperCase() : (user?.primaryEmailAddress?.emailAddress ? user.primaryEmailAddress.emailAddress.charAt(0).toUpperCase() : 'U')))}
             </Text>
           </View>
           
@@ -264,7 +264,7 @@ export default function ProfileScreen() {
           ) : (
             <>
               <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 10 }}>
-                <Text style={styles.profileName}>{userProfile?.fullName || 'User Profile'}</Text>
+                <Text style={styles.profileName}>{userProfile?.fullName || user?.fullName || user?.firstName || (user?.primaryEmailAddress?.emailAddress ? user.primaryEmailAddress.emailAddress.split('@')[0] : 'User Profile')}</Text>
                 <TouchableOpacity onPress={handleEditProfile} style={{ marginLeft: 8 }}>
                   <Feather name="edit-2" size={16} color="#6D28D9" />
                 </TouchableOpacity>
@@ -342,8 +342,8 @@ export default function ProfileScreen() {
 
           {isAdding && (
             <View style={styles.addForm}>
-              <Text style={{ color: '#FFFFFF', fontWeight: 'bold', fontSize: 16, marginBottom: 10 }}>1. Connect via SafeSphere ID (Recommended)</Text>
-              <Text style={{ color: '#9CA3AF', fontSize: 12, marginBottom: 10 }}>Search for a user by their SafeSphere ID (e.g. SSF-XXXX-XXXX) to send an App Guardian request.</Text>
+              <Text style={{ color: '#1F2937', fontWeight: 'bold', fontSize: 16, marginBottom: 10 }}>1. Connect via SafeSphere ID (Recommended)</Text>
+              <Text style={{ color: '#6B7280', fontSize: 12, marginBottom: 10 }}>Search for a user by their SafeSphere ID (e.g. SSF-XXXX-XXXX) to send an App Guardian request.</Text>
               <View style={{ flexDirection: 'row', gap: 10 }}>
                 <TextInput
                   style={[styles.formInput, { flex: 1, marginBottom: 0 }]}
@@ -364,8 +364,8 @@ export default function ProfileScreen() {
 
               {searchResult && (
                 <View style={{ marginTop: 15, padding: 15, backgroundColor: 'rgba(109,40,217,0.1)', borderRadius: 12, borderWidth: 1, borderColor: '#6D28D9' }}>
-                  <Text style={{ color: '#FFFFFF', fontWeight: 'bold', fontSize: 16 }}>{searchResult.fullName}</Text>
-                  <Text style={{ color: '#C4B5FD', fontSize: 12, marginTop: 4 }}>ID: {searchResult.safeSphereId}</Text>
+                  <Text style={{ color: '#1F2937', fontWeight: 'bold', fontSize: 16 }}>{searchResult.fullName}</Text>
+                  <Text style={{ color: '#6D28D9', fontSize: 12, marginTop: 4 }}>ID: {searchResult.safeSphereId}</Text>
                   
                   <TouchableOpacity style={[styles.saveContactBtn, { marginTop: 15 }]} onPress={handleSendRequest}>
                     <Text style={styles.saveContactText}>Send Guardian Request</Text>
@@ -373,10 +373,10 @@ export default function ProfileScreen() {
                 </View>
               )}
 
-              <View style={{ height: 1, backgroundColor: '#374151', marginVertical: 25 }} />
+              <View style={{ height: 1, backgroundColor: '#E5E7EB', marginVertical: 25 }} />
 
-              <Text style={{ color: '#FFFFFF', fontWeight: 'bold', fontSize: 16, marginBottom: 10 }}>2. Add Manual Contact (For SMS Fallback)</Text>
-              <Text style={{ color: '#9CA3AF', fontSize: 12, marginBottom: 15 }}>Add a phone number to send automated SMS alerts during an emergency.</Text>
+              <Text style={{ color: '#1F2937', fontWeight: 'bold', fontSize: 16, marginBottom: 10 }}>2. Add Manual Contact (For SMS Fallback)</Text>
+              <Text style={{ color: '#6B7280', fontSize: 12, marginBottom: 15 }}>Add a phone number to send automated SMS alerts during an emergency.</Text>
               <TextInput
                 style={styles.formInput}
                 placeholder="Guardian Name"
