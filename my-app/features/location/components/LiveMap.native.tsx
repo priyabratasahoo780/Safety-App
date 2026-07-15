@@ -1,6 +1,6 @@
 import React, { useRef, useEffect } from 'react';
 import { View, StyleSheet, Text } from 'react-native';
-import MapView, { Marker, PROVIDER_DEFAULT } from 'react-native-maps';
+import MapView, { Marker, UrlTile, PROVIDER_DEFAULT } from 'react-native-maps';
 import * as Location from 'expo-location';
 
 interface LiveMapProps {
@@ -45,7 +45,12 @@ export function LiveMap({ location, errorMsg }: LiveMapProps) {
       }}
       showsUserLocation={false}
       pitchEnabled={false}
+      mapType="none"
     >
+      <UrlTile
+        urlTemplate="https://a.tile.openstreetmap.org/{z}/{x}/{y}.png"
+        maximumZ={19}
+      />
       <Marker
         coordinate={{
           latitude: location.coords.latitude,

@@ -1,6 +1,6 @@
 import React, { useRef } from 'react';
 import { View, StyleSheet, Platform, Text } from 'react-native';
-import MapView, { Marker, PROVIDER_DEFAULT } from 'react-native-maps';
+import MapView, { Marker, UrlTile, PROVIDER_DEFAULT } from 'react-native-maps';
 import { Map as MapIcon, ShieldCheck } from 'lucide-react-native';
 
 export function DashboardMap() {
@@ -29,7 +29,12 @@ export function DashboardMap() {
         zoomEnabled={false}
         pitchEnabled={false}
         rotateEnabled={false}
+        mapType="none"
       >
+        <UrlTile
+          urlTemplate="https://a.tile.openstreetmap.org/{z}/{x}/{y}.png"
+          maximumZ={19}
+        />
         <Marker coordinate={kolkataCoords}>
           <View style={styles.userMarkerContainer}>
             <View style={styles.userMarkerInner} />
