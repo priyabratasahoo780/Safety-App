@@ -68,8 +68,14 @@ export default function DrawerLayout() {
         <Drawer.Screen
           name="add-contact"
           options={{
-            drawerLabel: 'Add Guardian',
-            drawerIcon: ({ color }) => <Feather name="user-plus" size={22} color={color} />,
+            drawerItemStyle: { display: 'none' }, // Hide from Drawer menu, accessible via Manage Guardians
+          }}
+        />
+        <Drawer.Screen
+          name="manage-guardians"
+          options={{
+            drawerLabel: 'Manage Guardians',
+            drawerIcon: ({ color }) => <Feather name="shield" size={22} color={color} />,
           }}
         />
         <Drawer.Screen
@@ -119,6 +125,13 @@ export default function DrawerLayout() {
           options={{
             drawerLabel: 'Safety Analysis',
             drawerIcon: ({ color }) => <Feather name="shield" size={22} color={color} />,
+          }}
+        />
+        <Drawer.Screen
+          name="permissions"
+          options={{
+            drawerLabel: 'Permissions & Access',
+            drawerIcon: ({ color }) => <Feather name="unlock" size={22} color={color} />,
           }}
         />
         <Drawer.Screen
