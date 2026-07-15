@@ -5,6 +5,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Feather } from '@expo/vector-icons';
 import MapView, { Marker } from '../../../components/MapViewProxy';
 import { useVideoPlayer, VideoView } from 'expo-video';
+import { useAudioPlayer } from 'expo-audio';
 import { SOSIncident, sosIncidentService } from '../../../features/emergency/services/sosIncidentService';
 import { doc, getDoc } from 'firebase/firestore';
 import { db } from '../../../src/config/firebaseConfig';
@@ -22,6 +23,24 @@ export default function GuardianTrackingScreen() {
     player.loop = true;
     player.play();
   });
+
+  const alarmPlayer = useAudioPlayer(require('../../../assets/alarm.wav'));
+  const [isMuted, setIsMuted] = useState(false);
+
+  useEffect(() => {
+    if (incident?.status === 'active' && !isMuted) {
+      alarmPlayer.loop = true;
+      alarmPlayer.play();
+    } else {
+      alarmPlayer.pause();
+    }
+  }, [incident?.status, isMuted, alarmPlayer]);
+
+  useEffect(() => {
+    return () => {
+      alarmPlayer.pause();
+    };
+  }, [alarmPlayer]);
 
   useEffect(() => {
     if (!id) return;
@@ -95,9 +114,17 @@ export default function GuardianTrackingScreen() {
             {protectedUser?.fullName || 'Protected User'} is in danger
           </Text>
         </View>
-        <TouchableOpacity style={styles.dismissBtn} onPress={handleDismiss}>
-          <Feather name="x" size={20} color="#FFFFFF" />
-        </TouchableOpacity>
+        <View style={styles.headerRight}>
+          <TouchableOpacity 
+            style={[styles.dismissBtn, { marginRight: 10, backgroundColor: isMuted ? 'rgba(0,0,0,0.5)' : 'rgba(239,68,68,0.8)' }]} 
+            onPress={() => setIsMuted(!isMuted)}
+          >
+            <Feather name={isMuted ? "volume-x" : "volume-2"} size={20} color="#FFFFFF" />
+          </TouchableOpacity>
+          <TouchableOpacity style={styles.dismissBtn} onPress={handleDismiss}>
+            <Feather name="x" size={20} color="#FFFFFF" />
+          </TouchableOpacity>
+        </View>
       </View>
 
       {/* Map View */}
@@ -191,6 +218,10 @@ const styles = StyleSheet.create({
     color: '#FEE2E2',
     fontSize: 14,
     marginTop: 2,
+  },
+  headerRight: {
+    flexDirection: 'row',
+    alignItems: 'center',
   },
   dismissBtn: {
     backgroundColor: 'rgba(0,0,0,0.2)',
